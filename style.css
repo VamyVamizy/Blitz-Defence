@@ -8,11 +8,490 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    overflow: hidden;
 }
 
 #gameContainer {
     position: relative;
     text-align: center;
+}
+
+#gameContainer,
+.boss-health-bar,
+#settingsModal,
+#pauseMenu,
+#gameOver,
+#victoryMenu,
+#startMenu,
+#mapSelectionMenu,
+#smithCutscene {
+    z-index: 1;
+}
+
+.admin-playerbase-panel {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    transform: translate(calc(100% - 34px), -50%);
+    width: 360px;
+    z-index: 50;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    pointer-events: none;
+}
+
+.admin-playerbase-panel.open {
+    transform: translate(0, -50%);
+    pointer-events: auto;
+}
+
+.admin-playerbase-tab {
+    position: absolute;
+    left: -34px;
+    top: 28px;
+    transform: none;
+    transform-origin: center;
+    width: 34px;
+    min-height: 118px;
+    padding: 10px 6px;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-bottom: none;
+    background: linear-gradient(180deg, #003366, #001122);
+    color: #fff;
+    border-radius: 10px 0 0 10px;
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    box-shadow: -4px 4px 14px rgba(0, 0, 0, 0.35);
+    pointer-events: auto;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-playerbase-content {
+    background: linear-gradient(180deg, rgba(0, 17, 34, 0.98), rgba(0, 51, 102, 0.96));
+    border-left: 2px solid rgba(255, 255, 255, 0.18);
+    box-shadow: -10px 0 28px rgba(0, 0, 0, 0.42);
+    border-radius: 14px 0 0 14px;
+    overflow: hidden;
+    max-height: min(82vh, 860px);
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+}
+
+.admin-sidebar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.admin-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.admin-sidebar-kicker {
+    margin: 0 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.admin-sidebar-header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.admin-refresh-btn {
+    white-space: nowrap;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.admin-sidebar-body {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.admin-sidebar-search input {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.30);
+    color: #fff;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-sidebar-search input:focus {
+    border-color: rgba(125, 211, 252, 0.7);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.12);
+}
+
+.admin-sidebar-meta {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    min-height: 18px;
+}
+
+.playerbase-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+    padding-right: 2px;
+    min-height: 240px;
+    max-height: 60vh;
+    padding-bottom: 4px;
+}
+
+.admin-playerbase-panel:not(.open) .admin-playerbase-content {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.admin-playerbase-panel.open .admin-playerbase-content {
+    opacity: 1;
+    visibility: visible;
+}
+
+.playerbase-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.24), rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.playerbase-main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.playerbase-name {
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.playerbase-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.68);
+    line-height: 1.35;
+}
+
+.playerbase-role {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.playerbase-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    flex: 0 0 180px;
+}
+
+.playerbase-role-editor {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.player-role-dropdown {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.34);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+}
+
+.player-role-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    padding: 4px 2px;
+}
+
+.player-role-option input {
+    width: 16px;
+    height: 16px;
+    accent-color: #7dd3fc;
+}
+
+.disabled-option {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.player-role-option span {
+    text-transform: capitalize;
+}
+
+.player-role-select {
+    width: 100%;
+    min-height: 92px;
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.34);
+    color: #fff;
+    font-size: 13px;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.player-role-select option {
+    padding: 6px 8px;
+    background: #0a1626;
+    color: #fff;
+}
+
+.player-role-select:focus {
+    border-color: rgba(255, 213, 79, 0.75);
+    box-shadow: 0 0 0 3px rgba(255, 213, 79, 0.12);
+}
+
+.player-role-save {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(0, 102, 204, 0.25), rgba(0, 102, 204, 0.12));
+    border: 1px solid rgba(125, 211, 252, 0.35);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.player-role-save:hover {
+    transform: translateY(-1px);
+    border-color: rgba(125, 211, 252, 0.7);
+    background: linear-gradient(180deg, rgba(0, 102, 204, 0.40), rgba(0, 102, 204, 0.18));
+}
+
+.player-role-save:disabled {
+    opacity: 0.55;
+    cursor: default;
+    transform: none;
+}
+
+.hidden-role-editor {
+    display: none;
+}
+
+.locked-view .player-role-select,
+.locked-view .player-role-save {
+    display: none;
+}
+
+.player-edit-toggle {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.player-edit-toggle:hover,
+.player-edit-toggle.active {
+    background: rgba(125, 211, 252, 0.12);
+    border-color: rgba(125, 211, 252, 0.42);
+    transform: translateY(-1px);
+}
+
+.playerbase-role-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.player-role-pill,
+.player-owner-lock {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.player-role-pill.role-owner,
+.player-owner-lock {
+    background: rgba(255, 215, 79, 0.14);
+    color: #ffd54f;
+    border: 1px solid rgba(255, 215, 79, 0.32);
+}
+
+.player-role-pill.role-admin { background: rgba(255, 196, 0, 0.18); color: #ffd54f; border: 1px solid rgba(255, 213, 79, 0.35); }
+.player-role-pill.role-moderator { background: rgba(0, 180, 255, 0.14); color: #7dd3fc; border: 1px solid rgba(125, 211, 252, 0.3); }
+.player-role-pill.role-player { background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.12); }
+
+.player-owner-lock {
+    width: 100%;
+}
+
+.admin-page-shell {
+    width: min(1400px, calc(100vw - 40px));
+    margin: 24px auto;
+    background: linear-gradient(180deg, rgba(0, 17, 34, 0.95), rgba(0, 51, 102, 0.88));
+    border: 2px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.admin-page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.admin-page-header h1 {
+    margin: 0;
+    font-size: 34px;
+}
+
+.admin-page-subtitle {
+    margin: 6px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.admin-page-permissions {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.admin-page-permissions span {
+    font-weight: 700;
+    color: #ffd54f;
+}
+
+.admin-page-actions,
+.admin-page-toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-page-toolbar {
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.admin-page-toolbar input {
+    flex: 1 1 320px;
+    min-width: 220px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.30);
+    color: #fff;
+    box-sizing: border-box;
+}
+
+.playerbase-page-list {
+    max-height: calc(100vh - 220px);
+}
+
+.admin-playerbase-panel.open {
+    box-shadow: -18px 0 36px rgba(0, 0, 0, 0.5);
+}
+
+/* Better scrollbar styling for player list */
+.playerbase-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+.playerbase-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+}
+
+.playerbase-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+.playerbase-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.playerbase-empty {
+    padding: 14px;
+    border-radius: 10px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.playerbase-empty.error {
+    color: #ffb3b3;
+}
+
+@media (max-width: 1500px) {
+    .admin-playerbase-panel {
+        width: min(360px, calc(100vw - 16px));
+    }
+
+    .admin-playerbase-panel.open {
+        transform: translate(0, -50%);
+    }
+
+    .admin-playerbase-tab {
+        top: 28px;
+    }
 }
 
 #gameCanvas {
@@ -31,19 +510,19 @@ body {
     padding: 30px;
     border: 2px solid #fff;
     border-radius: 10px;
-    text-align: center;
+        width: min(420px, calc(100vw - 16px));
 }
 
 #gameOver h2 {
-    color: #ff4444;
+        transform: translate(calc(100% - 34px), 0);
     margin-top: 0;
 }
 
-/* Game Over Menu Styles */
+        transform: translate(0, 0);
 .game-over-title {
     color: #ff4444 !important;
     text-shadow: 2px 2px 4px rgba(255, 68, 68, 0.5);
-}
+        top: 28px;
 
 .victory-title {
     color: #4CAF50 !important;
@@ -118,8 +597,8 @@ body {
     background: transparent;
     border: 2px solid rgba(255, 255, 255, 0.15);
     color: #fff;
-    font-size: 20px;
-    line-height: 1;
+    min-height: 104px;
+    padding: 8px 4px;
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -188,28 +667,14 @@ input[type="number"]:focus {
 }
 
 /* Action buttons follow game's style: bold, bordered, hover accent */
-.actions {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-top: 8px;
-}
+    .admin-playerbase-panel {
+        width: min(380px, calc(100vw - 16px));
+    }
 
-.actions button {
-    background: transparent;
-    color: #fff;
-    padding: 10px 18px;
-    border: 2px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background .12s ease, border-color .12s ease, transform .06s ease;
+    .admin-playerbase-tab {
+        top: 28px;
+    }
 }
-
-.actions button:hover {
-    background: rgba(0, 102, 204, 0.12);
-    border-color: rgba(0, 102, 204, 0.9);
-    transform: translateY(-1px);
 }
 
 .actions button.primary {

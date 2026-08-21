@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 
-<body>
+<body data-is-admin="<%= isAdmin ? 'true' : 'false' %>" data-can-assign-admin="<%= canAssignAdmin ? 'true' : 'false' %>">
     <!-- Settings button -->
     <button id="settingsCornerBtn" class="settings-corner-btn" onclick="openSettings()"
         title="Settings">&#9881;</button>
@@ -209,6 +209,7 @@
 
                         <div class="start-menu-bottom">
                             <button id="startBtn" class="primary-btn">START GAME</button>
+                            <button class="secondary-btn" onclick="window.location.href='/playerbase'">PLAYER BASE</button>
                             <button class="settings-menu-btn" onclick="openSettings()">&#9881; Settings</button>
                         </div>
                         <p class="footer-text">Mouse to aim • Customize before starting</p>
@@ -464,6 +465,23 @@
         });
     </script>
 
+    <script>
+        // Expose admin flag to client-side JS
+        window.isAdmin = document.body.dataset.isAdmin === 'true';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // If admin, hide payment UI but DO NOT auto-start the game
+            // This preserves the start menu so admins can change maps or open admin panel
+            if (window.isAdmin) {
+                const overlay = document.querySelector('.payment-overlay');
+                const content = document.querySelector('.payment-content');
+                if (overlay) overlay.style.display = 'none';
+                if (content) content.style.display = 'none';
+            }
+        });
+    </script>
+
+    <% if (!isAdmin) { %>
     <div class="payment-overlay" onclick="hidePayment()"></div>
     <div class="payment-content">
         <button onclick="hidePayment()" id="hide-payment">×</button>
@@ -489,7 +507,9 @@
                 <button class="primary" onclick="doTransfer();">Pay & Play</button>
             </div>
         </div>
+
     </div>
+    <% } %>
 
     </div>
 </body>

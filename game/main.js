@@ -1399,11 +1399,16 @@ class Game {
             });
         }
 
-        // Start button
+        // Start button: initiate proper start flow (server access check)
         const startBtn = document.getElementById('startBtn');
         if (startBtn) {
-            startBtn.addEventListener('click', () => {
-                pay();
+            startBtn.addEventListener('click', async () => {
+                if (window.game && typeof window.game.startGame === 'function') {
+                    await window.game.startGame();
+                } else {
+                    // Fallback to payment dialog if game instance missing
+                    pay();
+                }
             });
         }
 
