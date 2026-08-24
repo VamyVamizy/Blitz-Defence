@@ -211,6 +211,25 @@ const TOWER_TYPES = {
         countdownDuration: 180000,
         countdownResetCost: 500
     },
+    herta: {
+        name: 'Herta',
+        cost: 1,
+        damage: 2,
+        range: 120,
+        fireRate: 100,
+        color: '#4a4a4a',
+        image: '/img/herta.png',
+        width: 40,
+        height: 40,
+        pierce: 1,
+        seeHidden: true,
+        damageReinforced: true,
+        projectileCount: 1,
+        projectileSpeed: 1,
+        projectileLife: 100,
+         explosionArea: 75,
+        stunChance: 10,
+    }
 
 };
 
@@ -444,7 +463,7 @@ const TOWER_UPGRADES = {
             cost: 6250,
             image: '/img/megaman.png',
             apply: (tower) => {
-                tower.damage += 3;
+                tower.damage += 1;
                 addPierce(tower, 2);
                 scaleFireRate(tower, 0.7, 100);
             }
@@ -1019,8 +1038,23 @@ const TOWER_UPGRADES = {
                 tower.sRange += 25;
             }
         }
+    ],
+    herta : [
+        {
+            id: 'hertaUpgrade',
+            tier: 1,
+            name: 'Herta Upgrade',
+            description: 'Herta is now stronger and faster.',
+            cost: 10000,
+            image: '/img/herta.png',
+            apply: (tower) => {
+                tower.damage += 5;
+                tower.fireRate = Math.max(100, tower.fireRate - 200);
+                tower.range += 50;
+                tower.projectileCount += 2;
+            }
+        }
     ]
-
 };
 
 const TOWER_IMAGE_CACHE = {};
