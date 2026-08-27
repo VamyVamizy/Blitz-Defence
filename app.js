@@ -520,7 +520,7 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
         const data = {
             from: userId,
-            to: 46, // Replace with proper formbar ID or Pog Pool ID
+            to: 57, // Replace with proper formbar ID or Pog Pool ID
             amount: currentPrice,
             pin: parseInt(pin),
             reason: 'Game Entry Fee',

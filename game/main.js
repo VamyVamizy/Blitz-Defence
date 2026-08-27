@@ -22,6 +22,43 @@ function hidePayment() {
 //Some don't work on intended or just need some touching up before being added to the shop
 const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'grohl', 'gambler', 'bomber', 'silly', 'oppenheimer', 'renegade','herta']);
 
+const DIFFICULTY_PRESETS = {
+    easy: {
+        label: 'Easy',
+        description: 'Fewer enemies, weaker foes, and lesser rewards.',
+        enemyHealthMultiplier: 0.8,
+        enemySpeedMultiplier: 0.9,
+        rewardMultiplier: 0.25,
+        spawnCountMultiplier: 0.85
+    },
+    normal: {
+        label: 'Normal',
+        description: 'The intended baseline experience.',
+        enemyHealthMultiplier: 1,
+        enemySpeedMultiplier: 1,
+        rewardMultiplier: 1,
+        spawnCountMultiplier: 1
+    },
+    hard: {
+        label: 'Hard',
+        description: 'More enemies, tougher targets, and modestly better rewards.',
+        enemyHealthMultiplier: 1.25,
+        enemySpeedMultiplier: 1.1,
+        rewardMultiplier: 1.1,
+        spawnCountMultiplier: 1.15
+    },
+    nightmare: {
+        label: 'Nightmare',
+        description: 'Heavy pressure with dangerous enemies and larger waves.',
+        enemyHealthMultiplier: 1.6,
+        enemySpeedMultiplier: 1.25,
+        rewardMultiplier: 1.25,
+        spawnCountMultiplier: 1.35
+    }
+};
+
+const DEFAULT_DIFFICULTY_KEY = 'normal';
+
 async function checkTowerAvailability() {
     try {
         const result = await fetch('/checkGrohlUnlock');
@@ -271,9 +308,18 @@ class Game {
             this.soundEffects.demonicDaveGrohl.loop = false;
         }
 
+        const _initialSettings = (() => {
+            try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
+            catch (e) { return {}; }
+        })();
+
+        this.showTooltips = _initialSettings.tooltips !== false;
+        this.difficultyKey = this.normalizeDifficultyKey(_initialSettings.difficulty);
+        this.difficultySettings = this.getDifficultySettings(this.difficultyKey);
+
 
         // Wave system
-        this.waveManager = new WaveManager();
+        this.waveManager = new WaveManager(this.difficultySettings);
         this.currentWave = [];
         this.currentWaveIndex = 0;
         this.waveComplete = false;
@@ -322,12 +368,6 @@ class Game {
         this.towerShopRects = [];
         this.storeOpen = false;
 
-        const _initialSettings = (() => {
-            try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
-            catch (e) { return {}; }
-        })();
-        this.showTooltips = _initialSettings.tooltips !== false;
-
         this.renderer = new GameRenderer(this);
 
         this.showStartMenu();
@@ -343,6 +383,86 @@ class Game {
         this.hideAllMenus();
         document.getElementById('startMenu').classList.remove('hidden');
         this.updatePlayerPreview();
+        this.updateDifficultyUI();
+    }
+
+    normalizeDifficultyKey(key) {
+        const normalized = String(key || '').toLowerCase();
+        return DIFFICULTY_PRESETS[normalized] ? normalized : DEFAULT_DIFFICULTY_KEY;
+    }
+
+    getDifficultySettings(key = this.difficultyKey) {
+        const normalizedKey = this.normalizeDifficultyKey(key);
+        return { ...DIFFICULTY_PRESETS[normalizedKey] };
+    }
+
+    setDifficulty(key, persist = true) {
+        const normalizedKey = this.normalizeDifficultyKey(key);
+        this.difficultyKey = normalizedKey;
+        this.difficultySettings = this.getDifficultySettings(normalizedKey);
+
+        if (persist) {
+            const settings = (() => {
+                try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
+                catch (e) { return {}; }
+            })();
+            settings.difficulty = normalizedKey;
+            localStorage.setItem('blitzDefenceSettings', JSON.stringify(settings));
+        }
+
+        if (this.waveManager && typeof this.waveManager.setDifficultySettings === 'function') {
+            this.waveManager.setDifficultySettings(this.difficultySettings);
+        } else {
+            this.waveManager = new WaveManager(this.difficultySettings);
+        }
+
+        this.totalWaves = this.waveManager.getTotalWaves();
+        this.updateDifficultyUI();
+    }
+
+    updateDifficultyUI() {
+        const activeLabel = DIFFICULTY_PRESETS[this.difficultyKey]?.label || DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY_KEY].label;
+        const difficultyValue = document.getElementById('difficultyValue');
+        const difficultyDescription = document.getElementById('difficultyDescription');
+
+        if (difficultyValue) {
+            difficultyValue.textContent = activeLabel;
+        }
+
+        if (difficultyDescription) {
+            difficultyDescription.textContent = DIFFICULTY_PRESETS[this.difficultyKey]?.description || '';
+        }
+
+        document.querySelectorAll('[data-difficulty]').forEach(button => {
+            const isActive = button.dataset.difficulty === this.difficultyKey;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    applyDifficultyToEnemy(enemy) {
+        if (!enemy || enemy.constructor?.name === 'Smith') {
+            return enemy;
+        }
+
+        const settings = this.difficultySettings || this.getDifficultySettings();
+
+        if (typeof enemy.baseHp !== 'number') {
+            enemy.baseHp = enemy.hp;
+        }
+        if (typeof enemy.baseSpeed !== 'number') {
+            enemy.baseSpeed = enemy.speed;
+        }
+        if (typeof enemy.baseWorth !== 'number') {
+            enemy.baseWorth = enemy.worth;
+        }
+
+        enemy.hp = Math.max(1, Math.round(enemy.baseHp * settings.enemyHealthMultiplier));
+        enemy.maxHp = enemy.hp;
+        enemy.speed = enemy.baseSpeed * settings.enemySpeedMultiplier;
+        enemy.worth = Math.max(0, Math.round(enemy.baseWorth * settings.rewardMultiplier));
+
+        return enemy;
     }
 
     showMapSelectionMenu() {
@@ -1013,6 +1133,7 @@ class Game {
             'healthValue': this.sheild,
             'healthMaxValue': this.maxSheild,
             'moneyValue': this.money,
+            'difficultyValue': DIFFICULTY_PRESETS[this.difficultyKey]?.label || DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY_KEY].label,
             'currentWave': this.waveNumber,
             'totalWaves': this.totalWaves,
             'towersValue': this.placedTowers.length,
@@ -1411,6 +1532,12 @@ class Game {
                 }
             });
         }
+
+        document.querySelectorAll('[data-difficulty]').forEach(button => {
+            button.addEventListener('click', () => {
+                this.setDifficulty(button.dataset.difficulty);
+            });
+        });
 
         // Admin test-start button (skips payment for local testing)
         const testStartBtn = document.getElementById('testStartBtn');
@@ -3133,6 +3260,8 @@ class Game {
         enemy.x = spawnPos.x - enemy.width / 2;
         enemy.y = spawnPos.y - enemy.height / 2;
         enemy.setPath(pathWaypoints);
+
+        this.applyDifficultyToEnemy(enemy);
 
         // Apply endless mode scaling BEFORE enhancements
         if (this.waveNumber > 40) {

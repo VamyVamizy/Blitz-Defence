@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-
+    
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -127,6 +127,7 @@
             <div id="exp">EXP: <span id="expValue">0</span>/<span id="expMaxValue">100</span></div> -->
             <div id="health">Shield: <span id="healthValue">250</span>/<span id="healthMaxValue">250</span></div>
             <div id="money">Digipogs: <span id="moneyValue">500</span></div>
+            <div id="difficulty">Difficulty: <span id="difficultyValue">Normal</span></div>
             <button id="speedToggleBtn" class="speed-toggle-btn" type="button" aria-pressed="false">Speed x1</button>
 
             <!-- <div class="progress-container">
@@ -208,6 +209,16 @@
                         </div>
 
                         <div class="start-menu-bottom">
+                            <div class="difficulty-selector">
+                                <h3>Difficulty</h3>
+                                <div class="difficulty-options" role="group" aria-label="Difficulty selection">
+                                    <button class="difficulty-btn" type="button" data-difficulty="easy">Easy</button>
+                                    <button class="difficulty-btn" type="button" data-difficulty="normal">Normal</button>
+                                    <button class="difficulty-btn" type="button" data-difficulty="hard">Hard</button>
+                                    <button class="difficulty-btn" type="button" data-difficulty="nightmare">Nightmare</button>
+                                </div>
+                                <p id="difficultyDescription" class="difficulty-description">The intended baseline experience.</p>
+                            </div>
                             <button id="startBtn" class="primary-btn">START GAME</button>
                             <button class="secondary-btn" onclick="window.location.href='/playerbase'">PLAYER BASE</button>
                             <button class="settings-menu-btn" onclick="openSettings()">&#9881; Settings</button>

@@ -518,7 +518,6 @@ body {
     margin-top: 0;
 }
 
-        transform: translate(0, 0);
 .game-over-title {
     color: #ff4444 !important;
     text-shadow: 2px 2px 4px rgba(255, 68, 68, 0.5);
@@ -675,7 +674,7 @@ input[type="number"]:focus {
         top: 28px;
     }
 }
-}
+
 
 .actions button.primary {
     background: rgba(0, 102, 204, 0.18);
@@ -704,15 +703,15 @@ label.checkbox {
 
 /* Menu System Styles */
 .menu-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed;
+    inset: 0;
     background: rgba(0, 0, 0, 0.85);
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 24px 0;
+    box-sizing: border-box;
+    overflow-y: auto;
     z-index: 100;
 }
 
@@ -722,9 +721,89 @@ label.checkbox {
     border: 2px solid rgba(255, 255, 255, 0.1);
     padding: 40px;
     text-align: center;
-    max-width: 600px;
-    width: 90%;
+    width: min(720px, 92vw);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    box-sizing: border-box;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#startMenu .menu-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+@media (max-height: 860px) {
+    .menu-panel {
+        padding: 28px 26px;
+        max-height: calc(100vh - 32px);
+    }
+
+    .menu-panel h1 {
+        font-size: 40px;
+        margin-bottom: 14px;
+    }
+
+    .subtitle {
+        margin-bottom: 18px;
+    }
+
+    .menu-content {
+        gap: 24px;
+        margin-bottom: 20px;
+    }
+
+    .difficulty-selector {
+        padding: 12px 14px;
+    }
+
+    .difficulty-selector h3 {
+        font-size: 16px;
+    }
+
+    .start-menu-bottom {
+        margin-top: 2px;
+    }
+}
+
+@media (max-height: 760px) {
+    .menu-panel {
+        padding: 22px 20px;
+    }
+
+    .menu-panel h1 {
+        font-size: 34px;
+        margin-bottom: 10px;
+    }
+
+    .subtitle {
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+
+    .difficulty-selector {
+        padding: 10px 12px;
+    }
+
+    .difficulty-options {
+        gap: 8px;
+    }
+
+    .difficulty-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .primary-btn {
+        padding: 12px 32px;
+        font-size: 18px;
+    }
+
+    .secondary-btn {
+        padding: 10px 26px;
+        font-size: 15px;
+    }
 }
 
 .menu-panel h1 {
@@ -1202,6 +1281,59 @@ label.checkbox {
     align-items: center;
     gap: 10px;
     margin-top: 10px;
+}
+
+.difficulty-selector {
+    width: min(100%, 520px);
+    margin: 0 auto 8px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.difficulty-selector h3 {
+    margin: 0 0 10px;
+    color: #fff;
+    font-size: 18px;
+}
+
+.difficulty-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.difficulty-btn {
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.difficulty-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.difficulty-btn.active {
+    background: linear-gradient(180deg, rgba(113, 255, 77, 0.95), rgba(90, 210, 60, 0.95));
+    border-color: rgba(113, 255, 77, 0.9);
+    color: #111;
+    box-shadow: 0 0 0 3px rgba(113, 255, 77, 0.12);
+}
+
+.difficulty-description {
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 /* Settings button shown below START GAME in the start menu */

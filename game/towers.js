@@ -37,11 +37,11 @@ const TOWER_TYPES = {
         image: '/img/miku.png',
         projectileCount: 1,
         projectileSpeed: 0.8,
+        projectileLife: 10,
         width: 30,
         height: 30,
         stunRadius: 20,
         projectileCount: 1,
-        projectileSpeed: 1,
     },
     hacker: {
         name: 'Hacker',
@@ -221,11 +221,11 @@ const TOWER_TYPES = {
         image: '/img/herta.png',
         width: 40,
         height: 40,
-        pierce: 1,
+        pierce: 6769,
         seeHidden: true,
         damageReinforced: true,
-        projectileCount: 1000,
-        projectileSpeed: 3,
+        projectileCount: 1,
+        projectileSpeed: 1,
         projectileLife: 100,
          explosionArea: 75,
         stunChance: 10,
@@ -371,6 +371,7 @@ const TOWER_UPGRADES = {
             cost: 4900,
             image: '/img/miku.png',
             apply: (tower) => {
+                tower.projectileLife = 15;
                 tower.refractionSplitCount = 2;
             }
         },
@@ -401,6 +402,8 @@ const TOWER_UPGRADES = {
                 tower.pierce = Infinity;
                 tower.range = Infinity;
                 tower.seeHidden = true;
+                tower.damageReinforced = true;
+                tower.projectileLife = 1;
                 tower.railBeamMode = 'miku';
             }
         }
@@ -1048,10 +1051,26 @@ const TOWER_UPGRADES = {
             cost: 10000,
             image: '/img/herta.png',
             apply: (tower) => {
-                tower.damage += 5;
+                tower.damage += 8;
                 tower.fireRate = Math.max(100, tower.fireRate - 200);
                 tower.range += 50;
-                tower.projectileCount += 2;
+                tower.projectileCount += 5;
+                tower.seeHidden = true;
+                tower.damageReinforced = true;
+            }
+        },
+        {
+            id: 'hertaOverdrive',
+            tier: 2,
+            name: 'Herta Overdrive',
+            description: 'Madam Herta is a peerless gem, Madam Herta is an unrivaled genius, Madam Herta is an inimitable beauty.',
+            cost: 25000,
+            image: '/img/therta.png',
+            apply: (tower) => {
+                tower.damage += 2;
+                tower.fireRate = Math.max(50, tower.fireRate - 300);
+                tower.range += 10000;
+                tower.projectileCount += 50;
             }
         }
     ]
