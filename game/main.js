@@ -1390,12 +1390,12 @@ class Game {
         // 🎸 Special cost display for Grohl
         const costDisplay = (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice')
             ? nextUpgrade.cost
-            : `$${nextUpgrade.cost}`;
+            : `$${upgradeCost}`;
 
         bodyHTML += `<div class="upgrade-info">
     <div class="upgrade-name">${nextUpgrade.name}</div>
     <div class="upgrade-description">${nextUpgrade.description}</div>
-    <div class="upgrade-cost">Cost: ${tower.type === 'hero' ? costDisplay : `$${upgradeCost}`}</div>
+    <div class="upgrade-cost">Cost: ${costDisplay}</div>
 </div>`;
 
 
@@ -1414,12 +1414,12 @@ class Game {
             upgradeButton.disabled = false; // Always allow Grohl upgrade
             upgradeButton.dataset.upgradeId = nextUpgrade.id;
         } else if (tower.type === 'gambler') {
-            upgradeButton.textContent = `Roll the Dice ($${nextUpgrade.cost})`;
-            upgradeButton.disabled = this.money < nextUpgrade.cost;
+            upgradeButton.textContent = `Roll the Dice ($${upgradeCost})`;
+            upgradeButton.disabled = this.money < upgradeCost;
             upgradeButton.dataset.upgradeId = nextUpgrade.id;
         } else {
-            upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
-            upgradeButton.disabled = this.money < nextUpgrade.cost;
+            upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${upgradeCost})`;
+            upgradeButton.disabled = this.money < upgradeCost;
             upgradeButton.dataset.upgradeId = nextUpgrade.id;
         }
 
@@ -3021,6 +3021,7 @@ class Game {
 
     updateHeroSupport(hero, deltaTime, allEnemies) {
         const affectedTowers = this.getHeroInRange(hero, this.placedTowers);
+        const supportTowers = affectedTowers.includes(hero) ? affectedTowers : [hero, ...affectedTowers];
         const path = hero.heroPath || 'green';
         const activeAmount = this.getHeroPathBuffStrength(hero, path);
         const secondaryAmount = hero.heroTrinity ? 0.2 : 0;
@@ -3029,7 +3030,7 @@ class Game {
         buffs.damage = path === 'red' ? activeAmount : secondaryAmount * 0.25;
         buffs.cost = path === 'green' ? activeAmount : 0;
 
-        affectedTowers.forEach(tower => {
+        supportTowers.forEach(tower => {
             tower.heroRangeMultiplier = 1 + buffs.range;
             tower.heroDamageMultiplier = 1 + buffs.damage;
             tower.heroUpgradeCostMultiplier = Math.max(0.2, 1 - buffs.cost);
