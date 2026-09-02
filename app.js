@@ -74,6 +74,11 @@ db.run(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'player'`, (err)
     }
 });
 
+db.run(`ALTER TABLE users ADD COLUMN profile_picture TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+        console.log('Error adding profile_picture column:', err.message);
+    }
+});
 
 db.run(`CREATE TABLE IF NOT EXISTS game_settings (
     id INTEGER PRIMARY KEY,
@@ -128,7 +133,7 @@ const gameSessions = new Map(); // sessionId -> gameData
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
@@ -210,7 +215,7 @@ function loadPersistentRoles(req, callback) {
         }
 
         const dbRoles = normalizeRoleList(row?.role);
-        const merged = dbRoles.length ? dbRoles : fallbackRoles;
+        const merged = row ? dbRoles : fallbackRoles;
         req.session.userRoles = merged;
         req.session.userRole = merged.join(',');
         callback(merged);
@@ -229,6 +234,24 @@ function canEditRoles(req, callback) {
         );
     });
 }
+
+function loadRolesForRequest(req, res, next) {
+    if (!req.session?.user) return next();
+
+    loadPersistentRoles(req, () => next());
+}
+
+function requireAnyRole(...roles) {
+    return (req, res, next) => {
+        const userRoles = getUserRoles(req);
+        if (roles.some(role => userRoles.includes(String(role).toLowerCase())) || isAdminUser(req)) {
+            return next();
+        }
+        res.status(403).send('Access denied');
+    };
+}
+
+app.use(loadRolesForRequest);
 
 function getCurrentPrice(callback) {
     db.get(`SELECT setting_value FROM game_settings WHERE setting_name = ?`, ['game_price'], (err, row) => {
@@ -412,7 +435,7 @@ app.get('/debug/dbtest', isAuthenticated, (req, res) => {
 app.get('/checkGrohlUnlock', isAuthenticated, (req, res) => {
     const userId = req.session.token.id;
 
-    db.get('SELECT beatBoss FROM users WHERE id = ?', [userId], (err, row) => {
+    db.get('SELECT beatBoss FROM users WHERE fbID = ?', [userId], (err, row) => {
         if (err) {
             console.log('Error checking Grohl unlock status:', err);
             res.json({ ok: false, error: 'Failed to check unlock status' });
@@ -447,9 +470,13 @@ app.post('/saveCustomization', isAuthenticated, (req, res) => {
 
 // Record Boss defeat
 app.post('/recordBossDefeat', isAuthenticated, (req, res) => {
-    // const { waveNumber, timeTaken } = req.body;
+    const { waveNumber } = req.body;
     const userId = req.session.token.id;
     const username = req.session.user;
+
+    if (Number(waveNumber) !== 100 || req.session.gameDifficulty !== 'nightmare') {
+        return res.status(403).json({ ok: false, error: 'Grohl requires defeating the wave 100 boss on Nightmare.' });
+    }
 
     console.log(`🎯 Recording boss defeat for user ${username} (ID: ${userId})`);
 
@@ -616,6 +643,11 @@ app.post('/adminStartGame', isAuthenticated, isAdmin, (req, res) => {
 
 // Start game session
 app.post('/startGameSession', isAuthenticated, (req, res) => {
+    const requestedDifficulty = String(req.body?.difficulty || '').toLowerCase();
+    req.session.gameDifficulty = ['easy', 'normal', 'hard', 'nightmare'].includes(requestedDifficulty)
+        ? requestedDifficulty
+        : 'normal';
+
     // Allow admins to start without payment
     if (!req.session.hasPaid && !isAdminUser(req)) {
         return res.json({ ok: false, error: 'Payment required' });
@@ -669,28 +701,63 @@ app.get('/admin', isAuthenticated, requireRole('admin'), (req, res) => {
     });
 });
 
-app.get('/admin/playerbase', isAuthenticated, (req, res) => {
+function getPlayerbase(req, res) {
     canEditRoles(req, (editable) => {
-        db.all(
-            `SELECT username, fbID, role, beatBoss
-             FROM users
-             ORDER BY CASE WHEN role LIKE '%owner%' THEN 0 WHEN role LIKE '%admin%' THEN 1 ELSE 2 END, username COLLATE NOCASE ASC`,
-            [],
-            (err, rows) => {
-                if (err) {
-                    console.error('Error loading playerbase:', err);
-                    return res.status(500).json({ ok: false, error: 'Failed to load playerbase' });
-                }
+        const query = `SELECT username, fbID, role, beatBoss, profile_picture
+                       FROM users
+                       ORDER BY CASE WHEN role LIKE '%owner%' THEN 0 WHEN role LIKE '%admin%' THEN 1 ELSE 2 END, username COLLATE NOCASE ASC`;
 
-                const players = (rows || []).map(row => ({
-                    ...row,
-                    roles: normalizeRoleList(row.role),
-                    isOwner: normalizeRoleList(row.role).includes('owner')
-                }));
-
-                res.json({ ok: true, players, canEditRoles: editable, canAssignAdmin: canAssignAdminRole(req) });
+        db.all(query, [], (err, rows) => {
+            if (err && err.message.includes('no such column: profile_picture')) {
+                return db.all(
+                    `SELECT username, fbID, role, beatBoss
+                     FROM users
+                     ORDER BY CASE WHEN role LIKE '%owner%' THEN 0 WHEN role LIKE '%admin%' THEN 1 ELSE 2 END, username COLLATE NOCASE ASC`,
+                    [],
+                    (fallbackErr, fallbackRows) => sendPlayerbaseResponse(fallbackErr, fallbackRows)
+                );
             }
-        );
+            sendPlayerbaseResponse(err, rows);
+        });
+
+        function sendPlayerbaseResponse(err, rows) {
+            if (err) {
+                console.error('Error loading playerbase:', err);
+                return res.status(500).json({ ok: false, error: 'Failed to load playerbase' });
+            }
+
+            const players = (rows || []).map(row => ({
+                ...row,
+                profilePicture: row.profile_picture || null,
+                roles: normalizeRoleList(row.role),
+                isOwner: normalizeRoleList(row.role).includes('owner')
+            }));
+
+            res.json({ ok: true, players, canEditRoles: editable, canAssignAdmin: canAssignAdminRole(req), canViewPlayers: true });
+        }
+    });
+}
+
+app.get('/playerbase/data', isAuthenticated, getPlayerbase);
+app.get('/admin/playerbase', isAuthenticated, getPlayerbase);
+
+app.get('/profilePicture', isAuthenticated, (req, res) => {
+    db.get('SELECT profile_picture FROM users WHERE fbID = ?', [req.session.token.id], (err, row) => {
+        if (err) return res.status(500).json({ ok: false, error: 'Failed to load profile picture' });
+        res.json({ ok: true, profilePicture: row?.profile_picture || null });
+    });
+});
+
+app.post('/profilePicture', isAuthenticated, (req, res) => {
+    const profilePicture = typeof req.body.profilePicture === 'string' ? req.body.profilePicture : '';
+    const isValidImage = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(profilePicture);
+    if (profilePicture && (!isValidImage || profilePicture.length > 1500000)) {
+        return res.status(400).json({ ok: false, error: 'Use a PNG, JPG, WEBP, or GIF image under 1 MB.' });
+    }
+
+    db.run('UPDATE users SET profile_picture = ? WHERE fbID = ?', [profilePicture || null, req.session.token.id], function (err) {
+        if (err) return res.status(500).json({ ok: false, error: 'Failed to save profile picture' });
+        res.json({ ok: true, profilePicture: profilePicture || null });
     });
 });
 
@@ -699,22 +766,24 @@ app.get('/playerbase', isAuthenticated, (req, res) => {
         res.render('admin-playerbase', {
             user: req.session.user,
             canEditRoles: editable,
-            canAssignAdmin: canAssignAdminRole(req)
+            canAssignAdmin: canAssignAdminRole(req),
+            canViewPlayers: true,
         });
     });
 });
 
-app.get('/admin/playerbase-page', isAuthenticated, (req, res) => {
+app.get('/admin/playerbase-page', isAuthenticated, requireAnyRole('moderator', 'admin', 'owner'), (req, res) => {
     canEditRoles(req, (editable) => {
         res.render('admin-playerbase', {
             user: req.session.user,
             canEditRoles: editable,
-            canAssignAdmin: canAssignAdminRole(req)
+            canAssignAdmin: canAssignAdminRole(req),
+            canViewPlayers: true
         });
     });
 });
 
-app.post('/admin/updateRole', isAuthenticated, (req, res) => {
+app.post('/admin/updateRole', isAuthenticated, requireRole('admin'), (req, res) => {
     const { fbID, roles } = req.body;
     const targetFbID = parseInt(fbID, 10);
     const requestedRoles = normalizeRoleList(roles);

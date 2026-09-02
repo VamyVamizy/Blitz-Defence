@@ -310,6 +310,9 @@ class Bullet {
     }
 
     update(deltaTime) {
+        this.previousX = this.x;
+        this.previousY = this.y;
+
         if (this.vx !== 0 || this.vy !== this.speed) {
             this.x += this.vx * deltaTime;
             this.y += this.vy * deltaTime;

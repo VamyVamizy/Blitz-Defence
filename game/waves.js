@@ -1,12 +1,12 @@
 // Wave Management System
 class WaveManager {
-    constructor(difficultySettings = {}) {
-        this.maxWave = 41;
-        this.waves = {};
-        this.setDifficultySettings(difficultySettings, false);
+   constructor(difficultySettings = {}) {
+    this.waves = {};
 
-        this.rebuildWaves();
-    }
+    this.setDifficultySettings(difficultySettings, false);
+
+    this.rebuildWaves();
+}
 
     normalizeDifficultySettings(difficultySettings = {}) {
         return {
@@ -14,17 +14,21 @@ class WaveManager {
             enemySpeedMultiplier: 1,
             rewardMultiplier: 1,
             spawnCountMultiplier: 1,
+            maxWaves: 40,
             ...difficultySettings
         };
     }
 
     setDifficultySettings(difficultySettings = {}, rebuild = true) {
-        this.difficultySettings = this.normalizeDifficultySettings(difficultySettings);
+    this.difficultySettings =
+        this.normalizeDifficultySettings(difficultySettings);
 
-        if (rebuild) {
-            this.rebuildWaves();
-        }
+    this.maxWave = this.difficultySettings.maxWaves;
+
+    if (rebuild) {
+        this.rebuildWaves();
     }
+}
 
     rebuildWaves() {
         this.waves = {};
@@ -210,7 +214,7 @@ class WaveManager {
     }
 
     getTotalWaves() {
-        return this.maxWave - 1;
+        return this.maxWave;
     }
 
     buildEndlessWave(wave) {

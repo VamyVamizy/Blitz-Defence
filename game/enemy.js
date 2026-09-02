@@ -31,6 +31,25 @@ class EnemyBase {
     setPath(waypoints) {
         this.path = waypoints;
         this.currentWaypoint = 1;
+        this.pathProgress = 0;
+    }
+
+    updatePathProgress() {
+        if (!this.path || this.path.length < 2) {
+            this.pathProgress = 0;
+            return;
+        }
+
+        const waypointIndex = Math.min(this.currentWaypoint, this.path.length - 1);
+        const previous = this.path[Math.max(0, waypointIndex - 1)];
+        const target = this.path[waypointIndex];
+        const segmentLength = Math.hypot(target.x - previous.x, target.y - previous.y) || 1;
+        const enemyCenterX = this.x + this.width / 2;
+        const enemyCenterY = this.y + this.height / 2;
+        const remaining = Math.hypot(target.x - enemyCenterX, target.y - enemyCenterY);
+        const segmentProgress = Math.max(0, Math.min(1, 1 - remaining / segmentLength));
+
+        this.pathProgress = Math.min(1, (waypointIndex - 1 + segmentProgress) / (this.path.length - 1));
     }
 
     followPath(deltaTime) {
@@ -73,6 +92,8 @@ class EnemyBase {
             this.x += (dx / distance) * this.speed * deltaTime / 16;
             this.y += (dy / distance) * this.speed * deltaTime / 16;
         }
+
+        this.updatePathProgress();
     }
 
     takeDamage(damage = 1, isExplosive = false) {
