@@ -305,15 +305,14 @@ const TOWER_UPGRADES = {
             cost: 2750,
             image: '/img/scout.png',
             apply: (tower) => {
-                tower.projectileCount = Math.max(2, tower.projectileCount * 2);
-                tower.spreadRadians = 0;
+                scaleFireRate(tower, 0.5, 100);
             }
         },
         {
             id: 'rapidFire',
             tier: 5,
             name: 'Rapid Fire',
-            description: 'Took a few gun saftey courses, more damage, more peirce, and much faster fire rate.',
+            description: 'Took a few gun safety courses, more damage, more pierce, and much faster fire rate.',
             cost: 5200,
             image: '/img/scout.png',
             apply: (tower) => {
@@ -395,7 +394,7 @@ const TOWER_UPGRADES = {
             image: '/img/miku.png',
             apply: (tower) => {
                 tower.damage += 8;
-                addPierce(tower, 5);
+                tower.pierce = 2;
                 scaleFireRate(tower, 1.2, 120);
                 tower.railBeamMode = 'laser';
             }
@@ -1493,9 +1492,9 @@ class Tower {
             const isRailLaser = this.type === 'railgun';
             if (isRailLaser) {
                 const isMikuBeam = this.railBeamMode === 'miku';
-                const isInstantRail = !this.railBeamMode;
-                const beamThickness = isMikuBeam ? 18 : 6;
-                const beamLength = isMikuBeam || isInstantRail ? 0 : 120;
+                const isInstantRail = !this.railBeamMode || this.railBeamMode === 'laser';
+                const beamThickness = isMikuBeam ? 18 : (this.railBeamMode === 'laser' ? 12 : 6);
+                const beamLength = 0;
                 const beamLife = isMikuBeam ? 650 : 100;
 
                 bullet.isRailBeam = true;
