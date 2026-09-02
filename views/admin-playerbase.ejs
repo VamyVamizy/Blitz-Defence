@@ -8,14 +8,16 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 
-<body data-can-edit-roles="<%= canEditRoles ? 'true' : 'false' %>" data-can-assign-admin="<%= canAssignAdmin ? 'true' : 'false' %>">
+<body data-can-edit-roles="<%= canEditRoles ? 'true' : 'false' %>"
+    data-can-assign-admin="<%= canAssignAdmin ? 'true' : 'false' %>">
     <div class="admin-page-shell">
         <div class="admin-page-header">
             <div>
                 <p class="admin-sidebar-kicker">Admin Tools</p>
                 <h1>Player Base</h1>
                 <p class="admin-page-subtitle">Manage roles for logged-in players.</p>
-                <p class="admin-page-permissions">Edit access: <span id="editAccessState">checking...</span> • Admin assign: <span id="assignAdminState">checking...</span></p>
+                <p class="admin-page-permissions">Edit access: <span id="editAccessState">checking...</span> • Admin
+                    assign: <span id="assignAdminState">checking...</span></p>
             </div>
             <div class="admin-page-actions">
                 <button class="secondary-btn" type="button" onclick="window.location.href='/'">To Game</button>
@@ -35,18 +37,19 @@
             </div>
         </div>
 
-        <% if (canViewPlayers !== false) { %>
-        <div class="admin-page-toolbar">
-            <input id="playerBaseSearch" type="text" placeholder="Search username, id, or role..." autocomplete="off">
-            <button id="refreshPlayerBaseBtn" class="secondary-btn" type="button">Refresh</button>
-        </div>
+        <% if (canViewPlayers !==false) { %>
+            <div class="admin-page-toolbar">
+                <input id="playerBaseSearch" type="text" placeholder="Search username, id, or role..."
+                    autocomplete="off">
+                <button id="refreshPlayerBaseBtn" class="secondary-btn" type="button">Refresh</button>
+            </div>
 
-        <div class="admin-sidebar-meta">
-            <span id="playerBaseCount"></span>
-        </div>
+            <div class="admin-sidebar-meta">
+                <span id="playerBaseCount"></span>
+            </div>
 
-        <div id="playerBaseList" class="playerbase-list playerbase-page-list" role="list"></div>
-        <% } %>
+            <div id="playerBaseList" class="playerbase-list playerbase-page-list" role="list"></div>
+            <% } %>
     </div>
 
     <script>
