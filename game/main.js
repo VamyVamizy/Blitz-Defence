@@ -3,24 +3,111 @@ let pendingAction = 'play';
 
 // Payment functions
 function pay() {
-    document.querySelector('.payment-content').style.display = 'block';
-    document.querySelector('.payment-overlay').style.display = 'block';
+    console.log('Opening payment screen');
+
+    const paymentModal = document.getElementById('paymentModal');
+    const paymentBox = document.querySelector('.payment-box');
+
+    console.log('Payment elements:', {
+        paymentModal,
+        paymentBox
+    });
+
+    // Admins do not have a payment modal
+    if (!paymentModal || !paymentBox) {
+        if (window.isAdmin && window.game) {
+            console.log('Admin detected - starting game without payment');
+            window.game.startGame();
+            return;
+        }
+
+        console.error('Payment elements missing. Check the IDs/classes in your HTML.');
+        return;
+    }
+
+    // Show the payment modal
+    paymentModal.classList.remove('hidden');
+    paymentModal.style.display = 'flex';
+    paymentModal.style.visibility = 'visible';
+    paymentModal.style.opacity = '1';
+
+    console.log('Payment screen opened successfully');
 }
 
 function hidePayment() {
-    document.querySelector('.payment-content').style.display = 'none';
-    document.querySelector('.payment-overlay').style.display = 'none';
+    const paymentModal = document.getElementById('paymentModal');
 
-    // Check if we need to return to pause menu
+    if (paymentModal) {
+        paymentModal.classList.add('hidden');
+        paymentModal.style.display = '';
+        paymentModal.style.visibility = '';
+        paymentModal.style.opacity = '';
+    }
+
     if (window.game && window.game.restartFromPause) {
         console.log('Payment cancelled, returning to pause menu');
-        window.game.restartFromPause = false; // Reset flag
-        window.game.showPauseMenu(); // Show pause menu again
+
+        window.game.restartFromPause = false;
+        window.game.showPauseMenu();
     }
 }
 
+// Close payment when clicking outside the box
+document.addEventListener('DOMContentLoaded', () => {
+    const paymentModal = document.getElementById('paymentModal');
+
+    if (paymentModal) {
+        paymentModal.addEventListener('click', (event) => {
+            if (event.target === paymentModal) {
+                hidePayment();
+            }
+        });
+    }
+});
+
 //Some don't work on intended or just need some touching up before being added to the shop
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'grohl', 'gambler', 'bomber', 'silly', 'oppenheimer', 'renegade']);
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'hero', 'grohl', 'gambler', 'bomber', 'silly', 'oppenheimer', 'renegade']);
+
+const DIFFICULTY_PRESETS = {
+    easy: {
+        label: 'Easy',
+        description: 'Fewer enemies, weaker foes, and lesser rewards.',
+        enemyHealthMultiplier: 0.8,
+        enemySpeedMultiplier: 0.9,
+        rewardMultiplier: 0.25,
+        spawnCountMultiplier: 0.85,
+        maxWaves: 40
+    },
+    normal: {
+        label: 'Normal',
+        description: 'The intended baseline experience.',
+        enemyHealthMultiplier: 1,
+        enemySpeedMultiplier: 1,
+        rewardMultiplier: 1,
+        spawnCountMultiplier: 1,
+        maxWaves: 60
+    },
+    hard: {
+        label: 'Hard',
+        description: 'More enemies, tougher targets, and modestly better rewards.',
+        enemyHealthMultiplier: 1.25,
+        enemySpeedMultiplier: 1.1,
+        rewardMultiplier: 1.1,
+        spawnCountMultiplier: 1.15,
+        maxWaves: 80
+    },
+    nightmare: {
+        label: 'Nightmare',
+        description: 'Heavy pressure with dangerous enemies and larger waves.',
+        enemyHealthMultiplier: 1.6,
+        enemySpeedMultiplier: 1.25,
+        rewardMultiplier: 1.25,
+        spawnCountMultiplier: 1.35,
+        maxWaves: 100
+    }
+};
+
+const DEFAULT_DIFFICULTY_KEY = 'normal';
 
 async function checkTowerAvailability() {
     try {
@@ -37,6 +124,8 @@ async function checkTowerAvailability() {
 }
 
 function isTowerShopAvailable(key) {
+    if (key === 'herta' && document.body.dataset.isAdmin !== 'true') return false;
+    if (key === 'herta' && document.body.dataset.isAdmin === 'true') return true;
     return AVAILABLE_TOWER_SHOP_KEYS.has(key);
 }
 
@@ -161,6 +250,7 @@ class Game {
         this.serverSessionId = null
 
         this.player = new Player(this.width / 2, this.height - 50);
+        this.profilePicture = null;
         this.mouseX = this.width / 2;
         this.mouseY = this.height / 2;
         this.bullets = [];
@@ -186,6 +276,7 @@ class Game {
         this.showLevelUp = false;
 
         this.checkTowerAvailability();
+        this.loadProfilePicture();
 
         // Game state flags
         this.started = false;
@@ -271,9 +362,18 @@ class Game {
             this.soundEffects.demonicDaveGrohl.loop = false;
         }
 
+        const _initialSettings = (() => {
+            try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
+            catch (e) { return {}; }
+        })();
+
+        this.showTooltips = _initialSettings.tooltips !== false;
+        this.difficultyKey = this.normalizeDifficultyKey(_initialSettings.difficulty);
+        this.difficultySettings = this.getDifficultySettings(this.difficultyKey);
+
 
         // Wave system
-        this.waveManager = new WaveManager();
+        this.waveManager = new WaveManager(this.difficultySettings);
         this.currentWave = [];
         this.currentWaveIndex = 0;
         this.waveComplete = false;
@@ -307,7 +407,9 @@ class Game {
             previewBox: null,
             upgradeOptions: [],
             pause: { resumeButton: null, restartButton: null },
-            waveStart: { x: this.width - 45, y: this.height - 45, w: 30, h: 30 }
+            waveStart: { x: this.width - 45, y: this.height - 45, w: 30, h: 30 },
+            heroPath: { x: this.width - 210, y: 18, w: 92, h: 28 },
+            heroAbility: { x: this.width - 112, y: 18, w: 104, h: 28 }
         };
 
         // Map management
@@ -321,12 +423,6 @@ class Game {
         this.hoveredTowerShopKey = null;
         this.towerShopRects = [];
         this.storeOpen = false;
-
-        const _initialSettings = (() => {
-            try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
-            catch (e) { return {}; }
-        })();
-        this.showTooltips = _initialSettings.tooltips !== false;
 
         this.renderer = new GameRenderer(this);
 
@@ -343,6 +439,86 @@ class Game {
         this.hideAllMenus();
         document.getElementById('startMenu').classList.remove('hidden');
         this.updatePlayerPreview();
+        this.updateDifficultyUI();
+    }
+
+    normalizeDifficultyKey(key) {
+        const normalized = String(key || '').toLowerCase();
+        return DIFFICULTY_PRESETS[normalized] ? normalized : DEFAULT_DIFFICULTY_KEY;
+    }
+
+    getDifficultySettings(key = this.difficultyKey) {
+        const normalizedKey = this.normalizeDifficultyKey(key);
+        return { ...DIFFICULTY_PRESETS[normalizedKey] };
+    }
+
+    setDifficulty(key, persist = true) {
+        const normalizedKey = this.normalizeDifficultyKey(key);
+        this.difficultyKey = normalizedKey;
+        this.difficultySettings = this.getDifficultySettings(normalizedKey);
+
+        if (persist) {
+            const settings = (() => {
+                try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
+                catch (e) { return {}; }
+            })();
+            settings.difficulty = normalizedKey;
+            localStorage.setItem('blitzDefenceSettings', JSON.stringify(settings));
+        }
+
+        if (this.waveManager && typeof this.waveManager.setDifficultySettings === 'function') {
+            this.waveManager.setDifficultySettings(this.difficultySettings);
+        } else {
+            this.waveManager = new WaveManager(this.difficultySettings);
+        }
+
+        this.totalWaves = this.waveManager.getTotalWaves();
+        this.updateDifficultyUI();
+    }
+
+    updateDifficultyUI() {
+        const activeLabel = DIFFICULTY_PRESETS[this.difficultyKey]?.label || DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY_KEY].label;
+        const difficultyValue = document.getElementById('difficultyValue');
+        const difficultyDescription = document.getElementById('difficultyDescription');
+
+        if (difficultyValue) {
+            difficultyValue.textContent = activeLabel;
+        }
+
+        if (difficultyDescription) {
+            difficultyDescription.textContent = DIFFICULTY_PRESETS[this.difficultyKey]?.description || '';
+        }
+
+        document.querySelectorAll('[data-difficulty]').forEach(button => {
+            const isActive = button.dataset.difficulty === this.difficultyKey;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    applyDifficultyToEnemy(enemy) {
+        if (!enemy || enemy.constructor?.name === 'Smith') {
+            return enemy;
+        }
+
+        const settings = this.difficultySettings || this.getDifficultySettings();
+
+        if (typeof enemy.baseHp !== 'number') {
+            enemy.baseHp = enemy.hp;
+        }
+        if (typeof enemy.baseSpeed !== 'number') {
+            enemy.baseSpeed = enemy.speed;
+        }
+        if (typeof enemy.baseWorth !== 'number') {
+            enemy.baseWorth = enemy.worth;
+        }
+
+        enemy.hp = Math.max(1, Math.round(enemy.baseHp * settings.enemyHealthMultiplier));
+        enemy.maxHp = enemy.hp;
+        enemy.speed = enemy.baseSpeed * settings.enemySpeedMultiplier;
+        enemy.worth = Math.max(0, Math.round(enemy.baseWorth * settings.rewardMultiplier));
+
+        return enemy;
     }
 
     showMapSelectionMenu() {
@@ -359,15 +535,15 @@ class Game {
 
         // Define your maps with their corresponding image files
         this.availableMaps = [
-            { index: 0, name: '3 Ways', image: '/img/mapIMG/3Ways.png' },
-            { index: 1, name: 'Spiral', image: '/img/mapIMG/Spiral.png' },
-            { index: 2, name: '4Corners', image: '/img/mapIMG/4Corners.png' },
-            { index: 3, name: 'Mirrored', image: '/img/mapIMG/Mirrored.png' },
-            { index: 4, name: 'Cricut', image: '/img/mapIMG/Circut.png' },
-            { index: 5, name: 'Eye Spy', image: '/img/mapIMG/EyeSpye.png' },
-            { index: 6, name: '???', image: '/img/mapIMG/random.png' },
-            { index: 7, name: 'Vortex', image: '/img/mapIMG/VortexMap.png' },
-            { index: 8, name: 'Empty Space', image: '/img/mapIMG/EmptySpace.png' }
+            { index: 0, name: '3 Ways', difficulty: 'Extreme', image: '/img/mapIMG/3Ways.png' },
+            { index: 1, name: 'Spiral', difficulty: 'Very Easy', image: '/img/mapIMG/Spiral.png' },
+            { index: 2, name: '4Corners', difficulty: 'Medium', image: '/img/mapIMG/4Corners.png' },
+            { index: 3, name: 'Mirrored', difficulty: 'Medium', image: '/img/mapIMG/Mirrored.png' },
+            { index: 4, name: 'Cricut', difficulty: 'Extreme', image: '/img/mapIMG/Circut.png' },
+            { index: 5, name: 'Eye Spy', difficulty: 'Hard', image: '/img/mapIMG/EyeSpye.png' },
+            { index: 6, name: '???', difficulty: 'Unknown', image: '/img/mapIMG/random.png' },
+            { index: 7, name: 'Vortex', difficulty: 'Hard', image: '/img/mapIMG/VortexMap.png' },
+            { index: 8, name: 'Empty Space', difficulty: 'Hard', image: '/img/mapIMG/EmptySpace.png' }
         ];
 
         this.mapsPerPage = 8;
@@ -394,9 +570,10 @@ class Game {
             }
 
             mapCard.innerHTML = `
-            <div class="map-name">${map.name}</div>
             <img src="${map.image}" alt="${map.name}" class="map-preview-img" 
                  onerror="this.style.background='#333'; this.style.border='1px solid #555';">
+              <div class="map-name">${map.name}</div>
+              <div class="map-difficulty">Difficulty: ${map.difficulty}</div>
         `;
 
             mapCard.addEventListener('click', () => {
@@ -579,6 +756,20 @@ class Game {
         if (this.started && this.gameRunning) {
             this.updateTowerShopUI();
         }
+    }
+
+    async loadProfilePicture() {
+        try {
+            const response = await fetch('/profilePicture');
+            const data = await response.json();
+            if (data.ok) this.setProfilePicture(data.profilePicture);
+        } catch (error) {
+            console.error('Profile picture load error:', error);
+        }
+    }
+
+    setProfilePicture(profilePicture) {
+        this.profilePicture = profilePicture || null;
     }
 
 
@@ -1013,6 +1204,7 @@ class Game {
             'healthValue': this.sheild,
             'healthMaxValue': this.maxSheild,
             'moneyValue': this.money,
+            'difficultyValue': DIFFICULTY_PRESETS[this.difficultyKey]?.label || DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY_KEY].label,
             'currentWave': this.waveNumber,
             'totalWaves': this.totalWaves,
             'towersValue': this.placedTowers.length,
@@ -1108,7 +1300,7 @@ class Game {
         if (!this.selectedPlacedTower) {
             panel.classList.add('inactive');
             title.textContent = 'No Tower Selected';
-            body.innerHTML = 'Click a placed tower to view upgrades.';
+            body.innerHTML = '<div class="upgrade-empty">Select a tower to view its upgrades.</div>';
             upgradeButton.textContent = 'Upgrade';
             upgradeButton.disabled = true;
             upgradeButton.dataset.upgradeId = '';
@@ -1124,10 +1316,15 @@ class Game {
             const refuelCost = tower.countdownResetCost || 500;
             const countdownText = tower.getCountdownText ? tower.getCountdownText() : '0:00';
 
-            body.innerHTML = `<div class="upgrade-info">
+            title.textContent = `${tower.name} | Lv ${tower.level || 1}`;
+            body.innerHTML = `<div class="upgrade-stats">
+                <div><span>Damage</span><strong>${tower.damage || 0}</strong></div>
+                <div><span>Range</span><strong>${Math.round(tower.range || 0)}</strong></div>
+                <div><span>Timer</span><strong>${countdownText}</strong></div>
+            </div>
+            <div class="upgrade-info">
                 <div class="upgrade-name">Nuclear Countdown</div>
-                <div class="upgrade-description">Time remaining: ${countdownText}</div>
-                <div class="upgrade-description">Pay to reset the timer before detonation.</div>
+                <div class="upgrade-description">Reset the timer before detonation.</div>
                 <div class="upgrade-cost">Cost: $${refuelCost}</div>
             </div>`;
             upgradeButton.textContent = `Refuel ($${refuelCost})`;
@@ -1144,6 +1341,9 @@ class Game {
             tower.type === 'gambler' &&
             tower.gamblerUpgradeWavePurchased === this.waveNumber;
         const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
+        const upgradeCost = nextUpgrade
+            ? Math.ceil(nextUpgrade.cost * (tower.heroUpgradeCostMultiplier || 1))
+            : 0;
 
         const levelText = `Lv ${tower.level || 1}`;
         if (tower.type === 'hacker') {
@@ -1155,15 +1355,34 @@ class Game {
         sellButton.textContent = `Sell ($${sellValue})`;
         sellButton.disabled = false;
 
+        const towerUpgrades = TOWER_UPGRADES[tower.type] || [];
+        const upgradeTrack = towerUpgrades.map(upgrade => {
+            const purchased = tower.appliedUpgradeIds.includes(upgrade.id);
+            const isNext = !purchased && upgrade.id === nextUpgrade?.id;
+            const state = purchased ? 'purchased' : (isNext ? 'next' : 'locked');
+            return `<span class="upgrade-tier ${state}" title="${upgrade.name}">${upgrade.tier}</span>`;
+        }).join('');
+
+        const statsHTML = `<div class="upgrade-stats">
+            <div><span>Damage</span><strong>${Math.round(tower.damage || 0)}</strong></div>
+            <div><span>Range</span><strong>${tower.range === Infinity ? 'MAX' : Math.round(tower.range || 0)}</strong></div>
+            <div><span>Level</span><strong>${tower.level || 1}</strong></div>
+        </div>`;
+
         if (!nextUpgrade) {
-            body.innerHTML = 'No upgrades available yet for this tower.';
+            body.innerHTML = `${statsHTML}
+                <div class="upgrade-track">${upgradeTrack}</div>
+                <div class="upgrade-info upgrade-maxed">
+                    <div class="upgrade-name">MAX LEVEL</div>
+                    <div class="upgrade-description">This tower has every available upgrade.</div>
+                </div>`;
             upgradeButton.textContent = 'Maxed';
             upgradeButton.disabled = true;
             upgradeButton.dataset.upgradeId = '';
             return;
         }
 
-        let bodyHTML = '';
+        let bodyHTML = `${statsHTML}<div class="upgrade-track">${upgradeTrack}</div>`;
         if (nextUpgrade.image) {
             bodyHTML += `<img src="${nextUpgrade.image}" class="upgrade-preview-img" alt="${nextUpgrade.name}">`;
         }
@@ -1176,7 +1395,7 @@ class Game {
         bodyHTML += `<div class="upgrade-info">
     <div class="upgrade-name">${nextUpgrade.name}</div>
     <div class="upgrade-description">${nextUpgrade.description}</div>
-    <div class="upgrade-cost">Cost: ${costDisplay}</div>
+    <div class="upgrade-cost">Cost: ${tower.type === 'hero' ? costDisplay : `$${upgradeCost}`}</div>
 </div>`;
 
 
@@ -1185,10 +1404,8 @@ class Game {
         }
 
         body.innerHTML = bodyHTML;
+        upgradeButton.dataset.upgradeId = nextUpgrade.id;
         if (tower.type === 'gambler' && gamblerRollLocked) {
-            upgradeButton.textContent = 'Roll used this turn';
-            upgradeButton.disabled = true;
-        } if (tower.type === 'gambler' && gamblerRollLocked) {
             upgradeButton.textContent = 'Roll used this turn';
             upgradeButton.disabled = true;
         } else if (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice') {
@@ -1254,7 +1471,8 @@ class Game {
         }
 
         // Normal upgrade logic for all other towers
-        if (this.money < nextUpgrade.cost) return;
+        const upgradeCost = Math.ceil(nextUpgrade.cost * (tower.heroUpgradeCostMultiplier || 1));
+        if (this.money < upgradeCost) return;
         if (tower.type === 'gambler' && tower.gamblerUpgradeWavePurchased === this.waveNumber) {
             return;
         }
@@ -1262,7 +1480,7 @@ class Game {
         const applied = tower.applyUpgrade(nextUpgrade.id);
         if (!applied) return;
 
-        this.money -= applied.cost;
+        this.money -= upgradeCost;
 
         // Play appropriate sound effects
         if (tower.type === 'wizard' && applied.id === 'spellweaving') {
@@ -1395,17 +1613,41 @@ class Game {
 
                 // Reset to start menu state and show payment
                 this.quitToMenu();
+                await this.startGame();
+            });
+        }
+
+        // Start button: initiate proper start flow (server access check)
+
+        const startBtn = document.getElementById('startBtn');
+
+        if (startBtn) {
+            startBtn.addEventListener('click', async () => {
+                console.log('Start Game clicked');
+
+                // Admin skips payment
+                if (window.isAdmin) {
+                    console.log('Admin detected - starting game');
+
+                    if (window.game && typeof window.game.startGame === 'function') {
+                        await window.game.startGame();
+                    } else {
+                        console.error('Game instance not found');
+                    }
+
+                    return;
+                }
+
+                // Normal users see payment
                 pay();
             });
         }
 
-        // Start button
-        const startBtn = document.getElementById('startBtn');
-        if (startBtn) {
-            startBtn.addEventListener('click', () => {
-                pay();
+        document.querySelectorAll('[data-difficulty]').forEach(button => {
+            button.addEventListener('click', () => {
+                this.setDifficulty(button.dataset.difficulty);
             });
-        }
+        });
 
         // Admin test-start button (skips payment for local testing)
         const testStartBtn = document.getElementById('testStartBtn');
@@ -1438,8 +1680,7 @@ class Game {
                 // Set a flag so we know we came from pause menu
                 this.restartFromPause = true;
 
-                // Show payment prompt
-                pay();
+                await this.startGame();
             });
         }
 
@@ -1471,18 +1712,29 @@ class Game {
                 console.log('Victory restart button clicked');
                 document.getElementById('victoryMenu').classList.add('hidden');
                 this.quitToMenu();
-                pay();
+                await this.startGame();
             });
         }
 
         const endlessBtn = document.getElementById('endlessBtn');
+
         if (endlessBtn) {
             endlessBtn.addEventListener('click', () => {
                 console.log('Endless mode activated!');
+
                 document.getElementById('victoryMenu').classList.add('hidden');
+
                 this.endlessMode = true;
-                this.waveNumber = 41; // Start endless mode
+
+                // Start after the last completed wave
+                this.waveNumber = this.totalWaves + 1;
+
+                this.currentWave = [];
+                this.totalEnemiesInWave = 0;
+                this.enemiesSpawned = 0;
+
                 this.loadNewWave();
+
                 this.started = true;
                 this.gameRunning = true;
                 this.waveStartAllowed = true;
@@ -1627,6 +1879,16 @@ class Game {
             return;
         }
 
+        if (this.started && this.gameRunning && this.pointInRect(x, y, this.uiRects.heroPath)) {
+            this.cycleHeroPath();
+            return;
+        }
+
+        if (this.started && this.gameRunning && this.pointInRect(x, y, this.uiRects.heroAbility)) {
+            this.activateHeroAbility();
+            return;
+        }
+
         // Make it so towers can't be placed near the wave start button
         if (this.pointInRect(x, y, this.uiRects.waveStart)) {
             console.log("Wave start button clicked!");
@@ -1682,6 +1944,10 @@ class Game {
 
             // Place the tower yo
             const placedTower = new Tower(x, y, this.selectedTower, this);
+            if (placedTower.type === 'hero' && this.placedTowers.some(tower => tower && tower.type === 'hero')) {
+                console.log('Only one Hero can be placed.');
+                return;
+            }
             this.placedTowers.push(placedTower);
             this.money -= def.cost;
 
@@ -1804,6 +2070,7 @@ class Game {
             generator: 'shield support for your base',
             sentinel: 'fast burst fire',
             wizard: 'spell-based support and control',
+            hero: 'path-based buffs and active abilities',
             silly: 'crowd control and poison',
             grohl: 'a weird little power pick',
             oppenheimer: 'a risky nuclear finisher'
@@ -1827,6 +2094,11 @@ class Game {
 
         const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
         const parts = [`${tower.name} Lv ${tower.level || 1}`, this.formatTowerTooltipStats(tower), `Sell $${sellValue}`];
+        if (tower.heroBuffInfo?.length) parts.push(...tower.heroBuffInfo);
+        if (tower.type === 'hero') {
+            parts.push(`Path: ${(tower.heroPath || 'green').toUpperCase()}`);
+            parts.push(tower.heroAbilityUnlocked ? 'Active ability unlocked' : 'Active ability unlocks at upgrade 3');
+        }
 
         if (tower.type === 'oppenheimer') {
             const countdownText = tower.getCountdownText ? tower.getCountdownText() : '0:00';
@@ -1936,6 +2208,7 @@ class Game {
         Object.entries(TOWER_TYPES).forEach(([key, def]) => {
             const towerCost = Number.isFinite(def.cost) ? def.cost : 0;
             const isAvailable = isTowerShopAvailable(key);
+            const isAdminOnly = key === 'herta';
             const isLocked = !isAvailable && key === 'grohl'; // Grohl is locked, others are "coming soon"
 
             const card = document.createElement('div');
@@ -1951,6 +2224,9 @@ class Game {
             } else if (isLocked) {
                 title = 'Defeat Smith to unlock this tower';
                 actionText = '🔒 Locked';
+            } else if (isAdminOnly) {
+                title = 'Admins only';
+                actionText = 'Admins only';
             } else if (this.hasUpgradedGrohlTower()) {
                 title = 'Dave Grohl has consumed all towers';
                 actionText = 'Dave Grohl has consumed all towers';
@@ -2267,32 +2543,44 @@ class Game {
 
 
     async startGame() {
-        // Check payment status with server
-        const accessCheck = await post('/checkGameAccess', {});
+        try {
+            console.log('Checking game access...');
 
-        if (accessCheck.needsPayment) {
-            pay(); // Show payment dialog
-            return;
+            const accessCheck = await post('/checkGameAccess', {});
+
+            console.log('Access check:', accessCheck);
+
+            if (accessCheck.needsPayment) {
+                pay();
+                return;
+            }
+
+            const sessionResult = await post('/startGameSession', { difficulty: this.difficultyKey });
+
+            if (!sessionResult.ok) {
+                console.error(
+                    'Failed to start game session:',
+                    sessionResult.error
+                );
+
+                pay();
+                return;
+            }
+
+            this.serverSessionId = sessionResult.sessionId;
+
+            console.log('Server game session started');
+
+            this.started = true;
+            this.gameRunning = true;
+            this.storeOpen = false;
+
+            this.hideAllMenus();
+            this.restart(true);
+
+        } catch (error) {
+            console.error('Error in startGame():', error);
         }
-
-        // Start server game session
-        const sessionResult = await post('/startGameSession', {});
-
-        if (!sessionResult.ok) {
-            console.error('Failed to start game session:', sessionResult.error);
-            pay(); // Require payment
-            return;
-        }
-
-        this.serverSessionId = sessionResult.sessionId;
-        console.log('Server game session started');
-
-        // Start client game
-        this.started = true;
-        this.gameRunning = true;
-        this.storeOpen = false;
-        this.hideAllMenus();
-        this.restart(true);
     }
 
     // async loadPlayerCustomization() {
@@ -2571,18 +2859,44 @@ class Game {
 
         const cx = tower.x + tower.width / 2;
         const cy = tower.y + tower.height / 2;
+
+        // Current center of the target
         const tx = target.x + (target.width || 0) / 2;
         const ty = target.y + (target.height || 0) / 2;
+
+        // Distance from tower to target
         const dx = tx - cx;
         const dy = ty - cy;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        // How fast the bullet travels
+        const bulletSpeed = tower.projectileSpeed || 1;
+
+        // Estimate how long until the bullet reaches the enemy
+        const travelTime = distance / bulletSpeed;
+
+        // Predict where the enemy will be
+        const predictedX = tx + (target.vx || 0) * travelTime;
+        const predictedY = ty + (target.vy || 0) * travelTime;
+
+        // Aim at the predicted position
+        const aimDx = predictedX - cx;
+        const aimDy = predictedY - cy;
+
+        const len = Math.sqrt(aimDx * aimDx + aimDy * aimDy) || 1;
 
         const moveScale = Math.max(0.5, tower.summonMoveSpeedMultiplier || 1);
         const speed = (tower.projectileSpeed || 1) * moveScale;
 
         const bullet = new Bullet(cx, cy, true);
+
+        // Only sniper bullets track their target
+        bullet.target = this.target;
+        bullet.homing = this.type === "sniper";
+
         bullet.width = bossSummon ? 10 : 7;
         bullet.height = bossSummon ? 10 : 7;
+
         bullet.vx = (dx / len) * speed;
         bullet.vy = (dy / len) * speed;
         bullet.damage = Math.max(
@@ -2644,9 +2958,21 @@ class Game {
     }
 
     updateSupportTowers(deltaTime, allEnemies) {
+        this.placedTowers.forEach(tower => {
+            if (!tower) return;
+            tower.heroRangeMultiplier = 1;
+            tower.heroDamageMultiplier = 1;
+            tower.heroUpgradeCostMultiplier = 1;
+            tower.heroBuffInfo = null;
+        });
+
         for (let i = 0; i < this.placedTowers.length; i++) {
             const tower = this.placedTowers[i];
             if (!tower) continue;
+
+            if (tower.type === 'hero') {
+                this.updateHeroSupport(tower, deltaTime, allEnemies);
+            }
 
             if (tower.type === 'generator') {
                 if (!this.isWaveInProgress()) {
@@ -2673,6 +2999,98 @@ class Game {
                 }
             }
         }
+    }
+
+    getHeroPathBuffStrength(hero, path) {
+        const strength = hero.heroPathStrength || 1;
+        const base = { purple: 0.25, green: 0.15, red: 0.25 }[path] || 0;
+        return base * strength;
+    }
+
+    getHeroInRange(hero, units) {
+        const hx = hero.x + hero.width / 2;
+        const hy = hero.y + hero.height / 2;
+        const radius = hero.range;
+        return units.filter(unit => {
+            if (!unit || unit === hero) return false;
+            const ux = unit.x + (unit.width || 0) / 2;
+            const uy = unit.y + (unit.height || 0) / 2;
+            return Math.hypot(ux - hx, uy - hy) <= radius;
+        });
+    }
+
+    updateHeroSupport(hero, deltaTime, allEnemies) {
+        const affectedTowers = this.getHeroInRange(hero, this.placedTowers);
+        const path = hero.heroPath || 'green';
+        const activeAmount = this.getHeroPathBuffStrength(hero, path);
+        const secondaryAmount = hero.heroTrinity ? 0.2 : 0;
+        const buffs = { range: 0, damage: 0, cost: 0 };
+        buffs.range = path === 'purple' ? activeAmount : secondaryAmount * 0.25;
+        buffs.damage = path === 'red' ? activeAmount : secondaryAmount * 0.25;
+        buffs.cost = path === 'green' ? activeAmount : 0;
+
+        affectedTowers.forEach(tower => {
+            tower.heroRangeMultiplier = 1 + buffs.range;
+            tower.heroDamageMultiplier = 1 + buffs.damage;
+            tower.heroUpgradeCostMultiplier = Math.max(0.2, 1 - buffs.cost);
+            const labels = [];
+            if (buffs.range) labels.push(`Hero range +${Math.round(buffs.range * 100)}%`);
+            if (buffs.damage) labels.push(`Hero damage +${Math.round(buffs.damage * 100)}%`);
+            if (buffs.cost) labels.push(`Hero upgrades -${Math.round(buffs.cost * 100)}%`);
+            tower.heroBuffInfo = labels;
+        });
+
+        hero.heroBuffInfo = [
+            `${path[0].toUpperCase() + path.slice(1)} path`,
+            `Aura ${Math.round(hero.range)}px`,
+            ...(hero.heroTrinity ? ['Trinity: 20% secondary buffs'] : [])
+        ];
+
+        hero.heroAbilityCooldown = Math.max(0, (hero.heroAbilityCooldown || 0) - deltaTime);
+        const state = hero.heroAbilityState;
+        if (state?.type === 'purple' && state.pulsesRemaining > 0 && hero.heroAbilityCooldown <= 0) {
+            const cx = hero.x + hero.width / 2;
+            const cy = hero.y + hero.height / 2;
+            const radius = hero.range * (1 - state.pulsesRemaining * 0.12);
+            this.spellZones.push({ type: 'slow', x: cx, y: cy, radius, multiplier: 0.5, expiresAt: Date.now() + 5000 });
+            this.addSpellAnimation('heroShockwave', cx, cy, { radius, life: 500, color: '#b66cff' });
+            state.pulsesRemaining--;
+            hero.heroAbilityCooldown = 450;
+        }
+        if (state?.type === 'purple' && state.pulsesRemaining <= 0) hero.heroAbilityState = null;
+    }
+
+    cycleHeroPath() {
+        const hero = this.placedTowers.find(tower => tower && tower.type === 'hero');
+        if (!hero) return;
+        const paths = hero.heroRedUnlocked ? ['green', 'purple', 'red'] : ['green', 'purple'];
+        hero.heroPath = paths[(paths.indexOf(hero.heroPath) + 1) % paths.length];
+        this.updateTowerUpgradeUI();
+    }
+
+    activateHeroAbility() {
+        const hero = this.placedTowers.find(tower => tower && tower.type === 'hero');
+        if (!hero || !hero.heroAbilityUnlocked || hero.heroAbilityCooldown > 0) return;
+        const units = this.getHeroInRange(hero, this.placedTowers);
+        const enemies = this.getHeroInRange(hero, this.getAllEnemies());
+        if (hero.heroPath === 'purple') {
+            hero.heroAbilityState = { type: 'purple', pulsesRemaining: 4 };
+            hero.heroAbilityCooldown = 1;
+        } else if (hero.heroPath === 'green') {
+            this.addMoney(units.length * 50);
+            this.addSpellAnimation('heroShockwave', hero.x + hero.width / 2, hero.y + hero.height / 2, { radius: hero.range, life: 450, color: '#58d68d' });
+        } else if (hero.heroPath === 'red') {
+            enemies.forEach(enemy => {
+                enemy.takeDamage ? enemy.takeDamage(25) : (enemy.hp -= 25);
+                enemy.fortified = false;
+                enemy.reinforced = false;
+                enemy.armorBroken = true;
+                enemy.hidden = false;
+                enemy.isDashing = false;
+            });
+            this.addSpellAnimation('heroShockwave', hero.x + hero.width / 2, hero.y + hero.height / 2, { radius: hero.range, life: 450, color: '#ff5252' });
+        }
+        hero.heroAbilityCooldown = 5000;
     }
 
     getAllEnemies() {
@@ -2875,7 +3293,7 @@ class Game {
                         bullet.isWizardIceStorm = true;
                         bullet.width = 11;
                         bullet.height = 11;
-                        bullet.damage = Math.max(1, Math.round((tower.damage || 1) * 0.75));
+                        bullet.damage = Math.max(1, Math.round((tower.damage || 1) * (tower.heroDamageMultiplier || 1) * 0.75));
                         bullet.pierce = 1;
                         bullet.lifeRemaining = 2400;
                         bullet.vx = (dx / len) * speed;
@@ -2908,7 +3326,7 @@ class Game {
                             const sdx = ex - tx;
                             const sdy = ey - ty;
                             if ((sdx * sdx + sdy * sdy) <= surgeRadius * surgeRadius) {
-                                const surgeDamage = Math.max(1, Math.round((tower.damage || 1) * 0.8));
+                                const surgeDamage = Math.max(1, Math.round((tower.damage || 1) * (tower.heroDamageMultiplier || 1) * 0.8));
                                 enemy.takeDamage ? enemy.takeDamage(surgeDamage) : (enemy.hp -= surgeDamage);
                             }
                         }
@@ -3128,6 +3546,9 @@ class Game {
         enemy.x = spawnPos.x - enemy.width / 2;
         enemy.y = spawnPos.y - enemy.height / 2;
         enemy.setPath(pathWaypoints);
+        enemy.pathName = pathName;
+
+        this.applyDifficultyToEnemy(enemy);
 
         // Apply endless mode scaling BEFORE enhancements
         if (this.waveNumber > 40) {
@@ -3198,10 +3619,10 @@ class Game {
 
             const waveCompleteTime = Date.now() - this.waveStartTime;
 
-            // Check if this is the first completion of wave 40 (offer endless mode)
-            if (this.waveNumber === 40 && !this.endlessMode) {
-                console.log('Wave 40 completed! Offering endless mode...');
-                this.victory(); // Show victory screen with endless mode option
+            // Check if this is the first completion of the final wave (offer endless mode)
+            if (this.waveNumber >= this.totalWaves && !this.endlessMode) {
+                console.log(`Wave ${this.totalWaves} completed! Offering victory...`);
+                this.victory();
                 return;
             }
 
@@ -3258,18 +3679,6 @@ class Game {
                 }
 
                 const nextWave = result.nextWave;
-
-                // Special case: If we just completed wave 41 (Smith defeated), trigger victory
-                if (this.waveNumber === 41) {
-                    console.log('Smith defeated! Victory achieved!');
-                    this.victory();
-                    return;
-                }
-
-                if (this.waveNumber >= this.totalWaves) {
-                    this.victory();
-                    return;
-                }
 
                 // Normal wave transition
                 this.waveNumber = nextWave;
@@ -3369,7 +3778,7 @@ class Game {
     }
 
     checkLineCollision(player, lineShot) {
-        // Simple line-rectangle intersection
+        const halfWidth = lineShot.width / 2;
         const corners = [
             { x: player.x, y: player.y },
             { x: player.x + player.width, y: player.y },
@@ -3377,13 +3786,50 @@ class Game {
             { x: player.x + player.width, y: player.y + player.height }
         ];
 
-        for (let corner of corners) {
+        for (const corner of corners) {
             const distance = this.pointToLineDistance(corner.x, corner.y, lineShot);
-            if (distance < lineShot.width / 2) {
+            if (distance <= halfWidth) {
                 return true;
             }
         }
+
+        const edges = [
+            [{ x: player.x, y: player.y }, { x: player.x + player.width, y: player.y }],
+            [{ x: player.x + player.width, y: player.y }, { x: player.x + player.width, y: player.y + player.height }],
+            [{ x: player.x + player.width, y: player.y + player.height }, { x: player.x, y: player.y + player.height }],
+            [{ x: player.x, y: player.y + player.height }, { x: player.x, y: player.y }]
+        ];
+
+        for (const [start, end] of edges) {
+            if (this.lineSegmentsIntersect(lineShot.startX, lineShot.startY, lineShot.endX, lineShot.endY, start.x, start.y, end.x, end.y)) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    lineSegmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+        const orientation = (ax, ay, bx, by, cx, cy) => {
+            const value = (by - ay) * (cx - bx) - (bx - ax) * (cy - by);
+            if (Math.abs(value) < 0.0001) return 0;
+            return value > 0 ? 1 : 2;
+        };
+
+        const onSegment = (ax, ay, bx, by, cx, cy) =>
+            bx >= Math.min(ax, cx) && bx <= Math.max(ax, cx) &&
+            by >= Math.min(ay, cy) && by <= Math.max(ay, cy);
+
+        const first = orientation(x1, y1, x2, y2, x3, y3);
+        const second = orientation(x1, y1, x2, y2, x4, y4);
+        const third = orientation(x3, y3, x4, y4, x1, y1);
+        const fourth = orientation(x3, y3, x4, y4, x2, y2);
+
+        if (first !== second && third !== fourth) return true;
+        if (first === 0 && onSegment(x1, y1, x3, y3, x2, y2)) return true;
+        if (second === 0 && onSegment(x1, y1, x4, y4, x2, y2)) return true;
+        if (third === 0 && onSegment(x3, y3, x1, y1, x4, y4)) return true;
+        return fourth === 0 && onSegment(x3, y3, x2, y2, x4, y4);
     }
 
     pointToLineDistance(px, py, lineShot) {
@@ -3648,7 +4094,7 @@ class Game {
 
             const thickness = bullet.beamThickness || (bullet.isMikuBeam ? 18 : 6);
 
-            if (bullet.isMikuBeam) {
+            if (bullet.isMikuBeam || bullet.isInstantRail) {
                 const source = bullet.sourceTower;
                 const startX = source ? (source.x + source.width / 2) : centerX;
                 const startY = source ? (source.y + source.height / 2) : centerY;
@@ -3662,12 +4108,12 @@ class Game {
                 };
             }
 
-            const beamLength = bullet.beamLength || 120;
+            const beamLength = bullet.beamLength || Math.hypot(this.width, this.height) + 180;
             return {
-                startX: centerX - dirX * beamLength,
-                startY: centerY - dirY * beamLength,
-                endX: centerX,
-                endY: centerY,
+                startX: centerX,
+                startY: centerY,
+                endX: centerX + dirX * beamLength,
+                endY: centerY + dirY * beamLength,
                 width: thickness
             };
         };
@@ -3690,6 +4136,21 @@ class Game {
                 const beamLine = getBeamLineForBullet(bullet);
                 if (!beamLine) return false;
                 return this.checkLineCollision(enemy, beamLine);
+            }
+            if (bullet.fromTower && bullet.sourceTower?.type === 'railgun' && Number.isFinite(bullet.previousX)) {
+                const startX = bullet.previousX + (bullet.width || 0) / 2;
+                const startY = bullet.previousY + (bullet.height || 0) / 2;
+                const endX = bullet.x + (bullet.width || 0) / 2;
+                const endY = bullet.y + (bullet.height || 0) / 2;
+                if (this.checkLineCollision(enemy, {
+                    startX,
+                    startY,
+                    endX,
+                    endY,
+                    width: Math.max(bullet.width || 0, bullet.height || 0)
+                })) {
+                    return true;
+                }
             }
             return this.checkCollision(bullet, enemy);
         };
@@ -4009,7 +4470,7 @@ class Game {
             }
 
             // Check vs Boss
-            for (let j = this.bosses.length - 1; j >= 0; j--) {
+            for (let j = this.bosses.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
                 if (bulletHitsEnemy(bullet, this.bosses[j])) {
                     const boss = this.bosses[j];
                     if (!canBeamDamageTarget(bullet, boss)) continue;
@@ -4563,6 +5024,34 @@ class Game {
         this.particles.forEach(particle => particle.render(this.ctx));
 
         this.renderHoverTooltip();
+
+        const hero = this.placedTowers.find(tower => tower && tower.type === 'hero');
+        if (hero) {
+            const pathRect = this.uiRects.heroPath;
+            const abilityRect = this.uiRects.heroAbility;
+            const path = hero.heroPath || 'green';
+            const pathColors = { green: '#2e9d5b', purple: '#7e57c2', red: '#c0392b' };
+            const abilityReady = hero.heroAbilityUnlocked && hero.heroAbilityCooldown <= 0;
+
+            this.ctx.save();
+            this.ctx.font = '12px Arial';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillStyle = pathColors[path] || '#555';
+            this.ctx.fillRect(pathRect.x, pathRect.y, pathRect.w, pathRect.h);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillText(`Path: ${path}`, pathRect.x + pathRect.w / 2, pathRect.y + pathRect.h / 2);
+            this.ctx.fillStyle = abilityReady ? '#d4a72c' : '#555';
+            this.ctx.fillRect(abilityRect.x, abilityRect.y, abilityRect.w, abilityRect.h);
+            this.ctx.fillStyle = '#fff';
+            const abilityText = !hero.heroAbilityUnlocked
+                ? 'Ability locked'
+                : hero.heroAbilityCooldown > 0
+                    ? `Ability ${(hero.heroAbilityCooldown / 1000).toFixed(1)}s`
+                    : 'Use ability';
+            this.ctx.fillText(abilityText, abilityRect.x + abilityRect.w / 2, abilityRect.y + abilityRect.h / 2);
+            this.ctx.restore();
+        }
 
         // MOVE WAVE START BUTTON TO HERE (RENDER LAST SO IT'S ON TOP)
         if (this.started && this.gameRunning && this.enemiesAlive === 0 && (this.enemiesSpawned >= this.totalEnemiesInWave || this.totalEnemiesInWave === 0)) {

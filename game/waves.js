@@ -1,29 +1,74 @@
 // Wave Management System
 class WaveManager {
-    constructor() {
-        this.maxWave = 41;
-        this.waves = {};
+   constructor(difficultySettings = {}) {
+    this.waves = {};
 
+    this.setDifficultySettings(difficultySettings, false);
+
+    this.rebuildWaves();
+}
+
+    normalizeDifficultySettings(difficultySettings = {}) {
+        return {
+            enemyHealthMultiplier: 1,
+            enemySpeedMultiplier: 1,
+            rewardMultiplier: 1,
+            spawnCountMultiplier: 1,
+            maxWaves: 40,
+            ...difficultySettings
+        };
+    }
+
+    setDifficultySettings(difficultySettings = {}, rebuild = true) {
+    this.difficultySettings =
+        this.normalizeDifficultySettings(difficultySettings);
+
+    this.maxWave = this.difficultySettings.maxWaves;
+
+    if (rebuild) {
+        this.rebuildWaves();
+    }
+}
+
+    rebuildWaves() {
+        this.waves = {};
         for (let wave = 1; wave <= this.maxWave; wave++) {
             this.waves[wave] = this.buildWave(wave);
         }
     }
 
+    scaleCounts(counts) {
+        const multiplier = this.difficultySettings?.spawnCountMultiplier ?? 1;
+        const scaled = {};
+
+        for (const [key, value] of Object.entries(counts)) {
+            if (key === 'smith') {
+                scaled[key] = value;
+                continue;
+            }
+
+            scaled[key] = Math.max(0, Math.round(value * multiplier));
+        }
+
+        return scaled;
+    }
+
     composeWave(counts) {
+        const scaledCounts = this.scaleCounts(counts);
         const roster = [
-            [Smith, counts.smith || 0],
-            [Boss3, counts.boss3 || 0],
-            [Boss2, counts.boss2 || 0],
-            [Boss1, counts.boss1 || 0],
-            [Tank3, counts.tank3 || 0],
-            [Tank2, counts.tank2 || 0],
-            [Tank1, counts.tank1 || 0],
-            [Sprinter3, counts.sprinter3 || 0],
-            [Sprinter2, counts.sprinter2 || 0],
-            [Sprinter1, counts.sprinter1 || 0],
-            [Enemy3, counts.enemy3 || 0],
-            [Enemy2, counts.enemy2 || 0],
-            [Enemy1, counts.enemy1 || 0]
+            [Smith, scaledCounts.smith || 0],
+            [Boss3, scaledCounts.boss3 || 0],
+            [Boss2, scaledCounts.boss2 || 0],
+            [Boss1, scaledCounts.boss1 || 0],
+            [Tank3, scaledCounts.tank3 || 0],
+            [Tank2, scaledCounts.tank2 || 0],
+            [Tank1, scaledCounts.tank1 || 0],
+            [Sprinter3, scaledCounts.sprinter3 || 0],
+            [Sprinter2, scaledCounts.sprinter2 || 0],
+            [Sprinter1, scaledCounts.sprinter1 || 0],
+            [Enemy3, scaledCounts.enemy3 || 0],
+            [Enemy2, scaledCounts.enemy2 || 0],
+            [Enemy1, scaledCounts.enemy1 || 0]
         ];
 
         const wave = [];
@@ -169,7 +214,7 @@ class WaveManager {
     }
 
     getTotalWaves() {
-        return this.maxWave - 1;
+        return this.maxWave;
     }
 
     buildEndlessWave(wave) {

@@ -37,11 +37,11 @@ const TOWER_TYPES = {
         image: '/img/miku.png',
         projectileCount: 1,
         projectileSpeed: 0.8,
+        projectileLife: 0,
         width: 30,
         height: 30,
         stunRadius: 20,
         projectileCount: 1,
-        projectileSpeed: 1,
     },
     hacker: {
         name: 'Hacker',
@@ -51,6 +51,19 @@ const TOWER_TYPES = {
         width: 30,
         height: 30,
         image: '/img/redditMod.png'
+    },
+    hero: {
+        name: 'Hero',
+        cost: 1200,
+        damage: 0,
+        range: 100,
+        fireRate: 0,
+        color: '#58d68d',
+        width: 32,
+        height: 32,
+        image: '/img/player.png',
+        supportOnly: true,
+        heroPath: 'green'
     },
     gambler: {
         name: 'Gambler',
@@ -211,6 +224,25 @@ const TOWER_TYPES = {
         countdownDuration: 180000,
         countdownResetCost: 500
     },
+    herta: {
+        name: 'Herta',
+        cost: 1,
+        damage: 2,
+        range: 120,
+        fireRate: 100,
+        color: '#4a4a4a',
+        image: '/img/herta.png',
+        width: 40,
+        height: 40,
+        pierce: 6769,
+        seeHidden: true,
+        damageReinforced: true,
+        projectileCount: 1,
+        projectileSpeed: 1,
+        projectileLife: 100,
+        explosionArea: 75,
+        stunChance: 10,
+    }
 
 };
 
@@ -274,9 +306,7 @@ const TOWER_UPGRADES = {
             image: '/img/scout.png',
             apply: (tower) => {
                 tower.projectileCount = Math.max(2, tower.projectileCount * 2);
-                if (!tower.spreadRadians || tower.spreadRadians <= 0) {
-                    tower.spreadRadians = Math.PI / 18;
-                }
+                tower.spreadRadians = 0;
             }
         },
         {
@@ -352,6 +382,7 @@ const TOWER_UPGRADES = {
             cost: 4900,
             image: '/img/miku.png',
             apply: (tower) => {
+                tower.projectileLife = 15;
                 tower.refractionSplitCount = 2;
             }
         },
@@ -382,6 +413,8 @@ const TOWER_UPGRADES = {
                 tower.pierce = Infinity;
                 tower.range = Infinity;
                 tower.seeHidden = true;
+                tower.damageReinforced = true;
+                tower.projectileLife = 1;
                 tower.railBeamMode = 'miku';
             }
         }
@@ -444,7 +477,7 @@ const TOWER_UPGRADES = {
             cost: 6250,
             image: '/img/megaman.png',
             apply: (tower) => {
-                tower.damage += 3;
+                tower.damage += 1;
                 addPierce(tower, 2);
                 scaleFireRate(tower, 0.7, 100);
             }
@@ -557,6 +590,54 @@ const TOWER_UPGRADES = {
                 tower.statusCleanseChance = Math.min(1, (tower.statusCleanseChance || 0) + 0.2);
                 tower.statusCleanseRadius = (tower.statusCleanseRadius || 60) + 20;
             }
+        }
+    ],
+    hero: [
+        {
+            id: 'heroRange',
+            tier: 1,
+            name: 'Wider Influence',
+            description: 'Increase the Hero aura range.',
+            cost: 900,
+            apply: (tower) => { tower.range += 35; }
+        },
+        {
+            id: 'heroPathStrength',
+            tier: 2,
+            name: 'Focused Path',
+            description: 'Increase the strength of the active path buff.',
+            cost: 1800,
+            apply: (tower) => {
+                tower.heroPathStrength = 1.5;
+                tower.heroRedUnlocked = true;
+            }
+        },
+        {
+            id: 'heroAbility',
+            tier: 3,
+            name: 'Second Wind',
+            description: 'Unlock the active ability for the current path.',
+            cost: 3600,
+            apply: (tower) => { tower.heroAbilityUnlocked = true; }
+        },
+        {
+            id: 'heroMastery',
+            tier: 4,
+            name: 'Path Mastery',
+            description: 'Increase path strength again and expand the aura.',
+            cost: 7200,
+            apply: (tower) => {
+                tower.heroPathStrength = 2;
+                tower.range += 45;
+            }
+        },
+        {
+            id: 'heroTrinity',
+            tier: 5,
+            name: 'Trinity',
+            description: 'Gain 20% of the other two path buffs while keeping the active path at full strength.',
+            cost: 15000,
+            apply: (tower) => { tower.heroTrinity = true; }
         }
     ],
     overlord: [
@@ -1019,8 +1100,39 @@ const TOWER_UPGRADES = {
                 tower.sRange += 25;
             }
         }
+    ],
+    herta: [
+        {
+            id: 'hertaUpgrade',
+            tier: 1,
+            name: 'Herta Upgrade',
+            description: 'Herta is now stronger and faster.',
+            cost: 10000,
+            image: '/img/herta.png',
+            apply: (tower) => {
+                tower.damage += 8;
+                tower.fireRate = Math.max(100, tower.fireRate - 200);
+                tower.range += 50;
+                tower.projectileCount += 5;
+                tower.seeHidden = true;
+                tower.damageReinforced = true;
+            }
+        },
+        {
+            id: 'hertaOverdrive',
+            tier: 2,
+            name: 'Herta Overdrive',
+            description: 'Madam Herta is a peerless gem, Madam Herta is an unrivaled genius, Madam Herta is an inimitable beauty.',
+            cost: 25000,
+            image: '/img/therta.png',
+            apply: (tower) => {
+                tower.damage += 2;
+                tower.fireRate = Math.max(50, tower.fireRate - 300);
+                tower.range += 10000;
+                tower.projectileCount += 50;
+            }
+        }
     ]
-
 };
 
 const TOWER_IMAGE_CACHE = {};
@@ -1074,6 +1186,14 @@ class Tower {
         this.regenSpeed = def.regenSpeed || 0;
         this.regenAmount = def.regenAmount || 0;
         this.regenMax = def.regenMax || 0;
+        this.supportOnly = !!def.supportOnly;
+        this.heroPath = def.heroPath || null;
+        this.heroPathStrength = 1;
+        this.heroAbilityUnlocked = false;
+        this.heroRedUnlocked = false;
+        this.heroTrinity = false;
+        this.heroAbilityCooldown = 0;
+        this.heroAbilityState = null;
 
         this.hackInterval = def.hackInterval || 2500;
         this.hackRewardMultiplier = def.hackRewardMultiplier || 1;
@@ -1223,11 +1343,13 @@ class Tower {
             }
         }
 
-        // Find the closest enemy within range
+        // Find the enemy furthest along its track within range.
         this.target = null;
         this.swordTarget = null;
-        let closestDist = this.range;
+        const effectiveRange = this.range * (this.heroRangeMultiplier || 1);
+        let closestDist = effectiveRange;
         let closestSwordDist = this.sRange;
+        let bestTrackProgress = -1;
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
 
@@ -1244,10 +1366,22 @@ class Tower {
                 this.swordTarget = enemy;
             }
 
-            // Check for bullet range
-            if (dist <= this.range && dist < closestDist) {
-                closestDist = dist;
-                this.target = enemy;
+            // Check for bullet range. Progress is normalized so different tracks
+            // can be compared fairly; distance breaks ties on the same segment.
+            if (dist <= effectiveRange) {
+                const trackProgress = Number.isFinite(enemy.pathProgress)
+                    ? enemy.pathProgress
+                    : (enemy.path && enemy.path.length > 1
+                        ? Math.min(1, (enemy.currentWaypoint || 1) / (enemy.path.length - 1))
+                        : 0);
+                const isFurtherAlong = trackProgress > bestTrackProgress + 0.0001;
+                const isSameProgress = Math.abs(trackProgress - bestTrackProgress) <= 0.0001;
+
+                if (isFurtherAlong || (isSameProgress && dist < closestDist)) {
+                    bestTrackProgress = trackProgress;
+                    closestDist = dist;
+                    this.target = enemy;
+                }
             }
         });
 
@@ -1273,7 +1407,7 @@ class Tower {
      * @param {Array} bullets - shared game bullets array
      */
     shoot(bullets) {
-        if (this.type === 'oppenheimer') return false;
+        if (this.type === 'oppenheimer' || this.supportOnly) return false;
         if (!this.target || this.fireCooldown > 0) return false;
         const isSentinelBurst = this.type === 'sentinel';
         if (!isSentinelBurst) {
@@ -1285,15 +1419,32 @@ class Tower {
 
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
+
         const tx = this.target.x + (this.target.width || 0) / 2;
         const ty = this.target.y + (this.target.height || 0) / 2;
 
+        // Current distance to target
         const dx = tx - cx;
         const dy = ty - cy;
-        const len = Math.sqrt(dx * dx + dy * dy);
+
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance === 0) return false;
+
+        // Predict where the target will be
+        const projectileSpeed = Math.max(0.1, this.projectileSpeed || 1);
+        const travelTime = distance / projectileSpeed;
+
+        const predictedX = this.type === 'railgun' ? tx : tx + (this.target.vx || 0) * travelTime;
+        const predictedY = this.type === 'railgun' ? ty : ty + (this.target.vy || 0) * travelTime;
+
+        // Aim at predicted position
+        const aimDx = predictedX - cx;
+        const aimDy = predictedY - cy;
+
+        const len = Math.sqrt(aimDx * aimDx + aimDy * aimDy);
         if (len === 0) return false;
 
-        const baseAngle = Math.atan2(dy, dx);
+        const baseAngle = Math.atan2(aimDy, aimDx);
         const count = isSentinelBurst ? 1 : this.projectileCount;
         const hasConeSpread = count > 1 && this.spreadRadians > 0 && this.spreadRadians < (Math.PI * 2);
         const angleStep = count > 1
@@ -1320,7 +1471,7 @@ class Tower {
             bullet.height = 6;
             bullet.vx = Math.cos(angle) * this.projectileSpeed;
             bullet.vy = Math.sin(angle) * this.projectileSpeed;
-            bullet.damage = this.damage;
+            bullet.damage = this.damage * (this.heroDamageMultiplier || 1);
             bullet.pierce = this.pierce || 1;
             bullet.towerColor = this.color;
             bullet.fromTower = true;
@@ -1339,15 +1490,17 @@ class Tower {
                 bullet.lifeRemaining = this.projectileLife * 1000;
             }
 
-            const isRailLaser = this.type === 'railgun' && (this.railBeamMode === 'laser' || this.railBeamMode === 'miku');
+            const isRailLaser = this.type === 'railgun';
             if (isRailLaser) {
                 const isMikuBeam = this.railBeamMode === 'miku';
+                const isInstantRail = !this.railBeamMode;
                 const beamThickness = isMikuBeam ? 18 : 6;
-                const beamLength = isMikuBeam ? 0 : 120;
-                const beamLife = isMikuBeam ? 650 : 260;
+                const beamLength = isMikuBeam || isInstantRail ? 0 : 120;
+                const beamLife = isMikuBeam ? 650 : 100;
 
                 bullet.isRailBeam = true;
                 bullet.isMikuBeam = isMikuBeam;
+                bullet.isInstantRail = isInstantRail;
                 bullet.beamThickness = beamThickness;
                 bullet.beamLength = beamLength;
 
@@ -1362,12 +1515,12 @@ class Tower {
                     const dirX = this.vx / velocityLength;
                     const dirY = this.vy / velocityLength;
 
-                    let tailX = centerX - dirX * beamLength;
-                    let tailY = centerY - dirY * beamLength;
-                    let headX = centerX;
-                    let headY = centerY;
+                    let tailX = centerX;
+                    let tailY = centerY;
+                    let headX = centerX + dirX * beamLength;
+                    let headY = centerY + dirY * beamLength;
 
-                    if (isMikuBeam) {
+                    if (isMikuBeam || isInstantRail) {
                         const source = this.sourceTower;
                         const startX = source ? (source.x + source.width / 2) : centerX;
                         const startY = source ? (source.y + source.height / 2) : centerY;
@@ -1635,7 +1788,9 @@ class Tower {
 
         // Maxed towers use their upgrade icon on-canvas.
         const shouldDrawIcon = this.isMaxUpgradeLevel() || (this.type === 'gambler' && this.level >= 10);
-        const iconPath = shouldDrawIcon ? this.getMaxLevelImagePath() : null;
+        const iconPath = this.type === 'hero'
+            ? this.game?.profilePicture
+            : (shouldDrawIcon ? this.getMaxLevelImagePath() : null);
         const iconImage = iconPath ? getTowerImage(iconPath) : null;
         const canDrawIcon = !!(iconImage && iconImage.complete && iconImage.naturalWidth > 0);
 
